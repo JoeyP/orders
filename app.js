@@ -44,7 +44,7 @@ function ensureEditModal(){
         <label class="check"><input id="editShipped" type="checkbox"> Shipped</label>
       </div>
       <label>Scheduled Pickup Date <span class="small">(optional)</span></label><input id="editPickup" type="date">
-      <div class="modal-actions"><button type="button" id="cancelEdit">Cancel</button><button class="primary" id="saveEdit">Save Changes</button></div>
+      <div class="modal-actions"><button type="button" id="cancelEdit">Cancel</button><button class="primary" id="saveEdit">Save Changes</button><button type="button" class="danger-btn" data-mobile-delete="${o.id}">Delete Order</button></div>
       <div id="editError" class="error"></div>
     </form>
   </div>`;
@@ -106,3 +106,22 @@ function wireOrderActions(){
 async function mobileLoad(){await loadOrders();$('cards').innerHTML=filtered().map(o=>`<div class="order-card ${statusClass(o)}"><div class="card-top"><div><div class="customer">${esc(o.customer_name)}</div><div class="small">${poLabel(o)}</div></div><div><strong>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'No requested date'}</strong></div></div><ul>${(o.order_items||[]).map(i=>`<li>${esc(i.item_text)}</li>`).join('')}</ul><span class="pill">Back Ordered: ${o.back_ordered?'Yes':'No'}</span><span class="pill">Ready: ${o.ready_to_ship?'Yes':'No'}</span><span class="pill">Scheduled: ${o.scheduled?'Yes':'No'}</span>${o.scheduled_pickup_date?`<span class="pill">Pickup: ${fmtDate(o.scheduled_pickup_date)}</span>`:''}<span class="pill">Shipped: ${o.shipped?'Yes':'No'}</span><div class="card-actions"><button type="button" data-edit-order="${o.id}">Edit Order</button></div></div>`).join('');wireOrderActions()}
 async function initPage(){if(page==='home')return;if(page==='new'){setupPo();$('form').onsubmit=newOrderSubmit;return}if(page==='tracker'){await trackerLoad();$('body').addEventListener('change',changeTracker);$('search').oninput=trackerLoad;$('filter').onchange=trackerLoad;$('refreshBtn').onclick=trackerLoad;return}if(page==='blending'){await forecastLoad();$('refreshBtn').onclick=forecastLoad;return}if(page==='mobile'){await mobileLoad();$('filter').onchange=mobileLoad;$('refreshBtn').onclick=mobileLoad;return}if(page==='desktop'){await trackerLoad();$('body').addEventListener('change',changeTracker);$('search').oninput=trackerLoad;$('filter').onchange=trackerLoad;$('refreshBtn').onclick=trackerLoad;return}}
 document.querySelectorAll('.login-form').forEach(f=>f.addEventListener('submit',signIn));document.querySelectorAll('.logout').forEach(a=>a.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut()}));const{data:{session}}=await supabase.auth.getSession();await showSession(session);supabase.auth.onAuthStateChange(async(_e,s)=>await showSession(s));setInterval(async()=>{if(!user)return;if(page==='tracker'||page==='desktop')await trackerLoad();if(page==='blending')await forecastLoad();if(page==='mobile')await mobileLoad()},60000);
+
+
+async function mobileDeleteOrder(id){
+  const o = (typeof orders !== 'undefined' ? orders : []).find(x => String(x.id) === String(id));
+  const label = o && o.customer_name ? ` for ${o.customer_name}` : '';
+  if(!confirm(`Delete this order${label}? This cannot be undone.`)) return;
+  const { error } = await supabase.from('orders').delete().eq('id', id);
+  if(error){ alert(error.message); return; }
+  const modal = document.getElementById('editModal');
+  if(modal) modal.classList.add('hidden');
+  if(typeof load === 'function') await load();
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-mobile-delete]');
+  if(!btn) return;
+  e.preventDefault();
+  await mobileDeleteOrder(btn.dataset.mobileDelete);
+});
