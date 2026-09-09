@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>New Order - B&L Neeley</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--border:#d1d5db;--text:#1f2937;--muted:#6b7280;--accent:#2563eb;--ok:#166534}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+.wrap{max-width:620px;margin:auto;padding:18px}.card{background:white;border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+h1{font-size:25px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px;margin-bottom:14px}.hidden{display:none!important}
+label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input,textarea,button{width:100%;font-size:16px;border:1px solid var(--border);border-radius:10px;padding:13px}
+textarea{min-height:180px;resize:vertical}button{font-weight:700;cursor:pointer}.primary{background:var(--accent);border-color:var(--accent);color:white}
+.secondary{background:white}.nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.nav a{text-align:center;text-decoration:none;color:#1f2937;font-weight:700;background:white;border:1px solid var(--border);border-radius:10px;padding:12px}
+.success{color:var(--ok);font-weight:700;padding:10px 0}.error{color:#b91c1c;font-size:13px;margin-top:10px}.user{font-size:12px;color:var(--muted);text-align:right;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="loginView" class="card">
+<h1>B&L Neeley Orders</h1><div class="sub">Mobile order entry</div>
+<form id="loginForm"><label>Email</label><input id="email" type="email" required autocomplete="username"><label>Password</label><input id="password" type="password" required autocomplete="current-password"><div style="height:14px"></div><button class="primary">Sign In</button><div id="loginError" class="error"></div></form>
+</div>
+
+<div id="appView" class="hidden">
+<div class="user"><span id="userEmail"></span> · <a href="#" id="logout">Log out</a></div>
+<div class="nav"><a href="mobile.html">Orders</a><a href="index.html">Desktop Board</a></div>
+<div class="card">
+<h1>New Order</h1><div class="sub">Enter one item per line. The blending board will separate quantity, container size, and item automatically.</div>
+<form id="orderForm">
+<label>Customer Name</label><input id="customer" required autocomplete="organization">
+<label>PO Number</label><input id="po">
+<label>Requested Ship Date</label><input id="shipDate" type="date" required>
+<label>Order</label><textarea id="orderText" required placeholder="1 - 275g Caustic 30%&#10;1 - 55g CIP5&#10;2 - 53g Perasan A"></textarea>
+<div style="height:14px"></div><button class="primary" id="submitBtn">Submit Order</button>
+<div id="msg"></div>
+</form>
+</div>
+</div>
+</div>
+<script type="module">
+import{createClient}from'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import{SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY}from'./config.js';
+const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const $=id=>document.getElementById(id);let user=null;
+function splitItems(t){return String(t||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
+async function show(session){user=session?.user||null;$('loginView').classList.toggle('hidden',!!user);$('appView').classList.toggle('hidden',!user);if(user)$('userEmail').textContent=user.email||''}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginError').textContent='';const{error}=await supabase.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)$('loginError').textContent=error.message};
+$('logout').onclick=async e=>{e.preventDefault();await supabase.auth.signOut()};
+$('orderForm').onsubmit=async e=>{e.preventDefault();$('msg').className='';$('msg').textContent='';const lines=splitItems($('orderText').value);if(!lines.length){$('msg').className='error';$('msg').textContent='Enter at least one order item.';return}
+$('submitBtn').disabled=true;$('submitBtn').textContent='Submitting...';
+const payload={customer_name:$('customer').value.trim(),order_text:lines.join('\n'),po_number:$('po').value.trim()||null,requested_ship_date:$('shipDate').value,ready_to_ship:false,delivered:false,created_by:user.id,created_by_email:user.email||null,updated_by:user.id,updated_by_email:user.email||null};
+const{data:order,error}=await supabase.from('orders').insert(payload).select().single();if(error){$('msg').className='error';$('msg').textContent=error.message;$('submitBtn').disabled=false;$('submitBtn').textContent='Submit Order';return}
+const items=lines.map((item_text,position)=>({order_id:order.id,item_text,position}));const{error:itemErr}=await supabase.from('order_items').insert(items);if(itemErr){$('msg').className='error';$('msg').textContent=itemErr.message}else{$('orderForm').reset();$('msg').className='success';$('msg').innerHTML='Order submitted successfully. <a href="mobile.html">View orders</a>'}
+$('submitBtn').disabled=false;$('submitBtn').textContent='Submit Order'};
+const{data:{session}}=await supabase.auth.getSession();await show(session);supabase.auth.onAuthStateChange(async(_e,s)=>await show(s));
+</script>
+</body>
+</html>

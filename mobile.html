@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mobile Orders - B&L Neeley</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--border:#d1d5db;--text:#1f2937;--muted:#6b7280;--accent:#2563eb;--red:#fecaca;--yellow:#fef3c7;--orange:#fed7aa;--green:#dcfce7;--gray:#f3f4f6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+.wrap{max-width:700px;margin:auto;padding:14px}.hidden{display:none!important}
+.header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}h1{font-size:24px;margin:0}.user{font-size:11px;color:var(--muted);text-align:right}
+.nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.nav a{text-align:center;background:white;border:1px solid var(--border);border-radius:10px;padding:11px;text-decoration:none;color:var(--text);font-weight:700}
+.controls{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px}select,button,input,textarea{font:inherit;border:1px solid var(--border);border-radius:10px;padding:11px}button{font-weight:700;background:white}.primary{background:var(--accent);color:white;border-color:var(--accent)}
+.card{border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:white}.red{background:var(--red)}.yellow{background:var(--yellow)}.orange{background:var(--orange)}.green{background:var(--green)}.gray{background:var(--gray);color:#6b7280}
+.card-top{display:flex;justify-content:space-between;gap:10px}.customer{font-size:19px;font-weight:800}.date{font-size:13px;font-weight:700;white-space:nowrap}.po{font-size:12px;color:#4b5563;margin-top:2px}
+.items{margin:10px 0 8px;padding-left:20px}.items li{margin:4px 0}.status{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:700}.pill{background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);border-radius:999px;padding:5px 8px}
+.actions{display:flex;gap:8px;margin-top:10px}.actions button{flex:1}
+.login{background:white;border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:50px}.login label,.modal label{display:block;font-size:12px;font-weight:700;margin:12px 0 5px}.login input,.modal input,.modal textarea{width:100%}.error{color:#b91c1c;font-size:13px;margin-top:8px}.empty{text-align:center;color:var(--muted);padding:30px}
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:end center;z-index:10}.modal{width:100%;max-width:700px;max-height:92vh;overflow:auto;background:white;border-radius:18px 18px 0 0;padding:18px}
+.modal h2{margin:0 0 4px}.modal textarea{min-height:145px}.lot-row{display:grid;grid-template-columns:1fr 145px;gap:8px;align-items:center;margin:7px 0}.lot-row input{padding:9px}.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.checkbox{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:10px}.checkbox input{width:22px;height:22px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="loginView" class="login">
+<h1>B&L Neeley Orders</h1><p style="color:#6b7280">Mobile order view</p>
+<form id="loginForm"><label>Email</label><input id="email" type="email" required autocomplete="username"><label>Password</label><input id="password" type="password" required autocomplete="current-password"><div style="height:12px"></div><button class="primary" style="width:100%">Sign In</button><div id="loginError" class="error"></div></form>
+</div>
+
+<div id="appView" class="hidden">
+<div class="header"><div><h1>Orders</h1><div style="font-size:12px;color:#6b7280" id="refreshText"></div></div><div class="user"><span id="userEmail"></span><br><a href="#" id="logout">Log out</a></div></div>
+<div class="nav"><a href="new.html">+ New Order</a><a href="index.html">Desktop Board</a></div>
+<div class="controls"><select id="filter"><option value="active">Active Orders</option><option value="ready">Ready</option><option value="open">Open</option><option value="delivered">Delivered</option><option value="all">All Orders</option></select><button id="refreshBtn">Refresh</button></div>
+<div id="cards"></div><div id="empty" class="empty hidden">No orders found.</div>
+</div>
+</div>
+
+<div id="modalBack" class="modal-back hidden">
+<div class="modal">
+<h2>Edit Order</h2><div style="font-size:12px;color:#6b7280">Lot numbers are optional here, but available if you need them.</div>
+<input id="editId" type="hidden">
+<label>Customer</label><input id="editCustomer">
+<label>PO Number</label><input id="editPo">
+<label>Requested Ship Date</label><input id="editDate" type="date">
+<label>Order — one item per line</label><textarea id="editOrder"></textarea>
+<label>Lot Numbers</label><div id="lotEditor"></div>
+<div class="checks"><label class="checkbox"><input id="editReady" type="checkbox"> Ready</label><label class="checkbox"><input id="editDelivered" type="checkbox"> Delivered</label></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="cancelEdit">Cancel</button><button id="saveEdit" class="primary">Save Changes</button></div>
+<div id="editError" class="error"></div>
+</div>
+</div>
+
+<script type="module">
+import{createClient}from'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import{SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY}from'./config.js';
+const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const $=id=>document.getElementById(id);let orders=[],user=null;
+
+  function parseOrderLine(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return { qty:'', container:'', item:'' };
+
+    // Qty + optional separator + container size + remainder.
+    // Examples:
+    // 2 - 53g Perasan A
+    // 2 x 53g Perasan A
+    // 2 53 gal Perasan A
+    // 1 - tote Caustic (falls back if no numeric size)
+    let m = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(\d+(?:\.\d+)?)\s*(g|gal|gallon|gallons|lb|lbs|pound|pounds|oz|ounce|ounces|kg|l|liter|liters|litre|litres)\b\s*(.*)$/i);
+    if (m) {
+      let unit = m[3].toLowerCase();
+      if (['g','gal','gallon','gallons'].includes(unit)) unit = 'gal';
+      else if (['lb','lbs','pound','pounds'].includes(unit)) unit = 'lb';
+      else if (['oz','ounce','ounces'].includes(unit)) unit = 'oz';
+      else if (unit === 'kg') unit = 'kg';
+      else unit = 'L';
+      return {
+        qty:m[1],
+        container:`${m[2]} ${unit}`,
+        item:(m[4] || '').trim()
+      };
+    }
+
+    // Qty + named container + remainder.
+    m = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(drum|drums|tote|totes|pail|pails|case|cases|bag|bags)\b\s*(.*)$/i);
+    if (m) {
+      return {
+        qty:m[1],
+        container:m[2].replace(/s$/i,'').toLowerCase().replace(/^./, c=>c.toUpperCase()),
+        item:(m[3] || '').trim()
+      };
+    }
+
+    // Qty only, then remainder.
+    m = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(.*)$/);
+    if (m && m[2].trim()) {
+      return { qty:m[1], container:'', item:m[2].trim() };
+    }
+
+    // Could not confidently parse. Never discard the original text.
+    return { qty:'', container:'', item:text };
+  }
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function localDateString(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function tomorrowString(){const d=new Date();d.setDate(d.getDate()+1);return localDateString(d)}
+function fmt(s){if(!s)return'';const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
+function cls(o){if(o.delivered)return'gray';const t=localDateString(new Date()),tm=tomorrowString();if(o.requested_ship_date<t&&!o.ready_to_ship)return'red';if(o.requested_ship_date===t&&!o.ready_to_ship)return'red';if(o.requested_ship_date===t&&o.ready_to_ship)return'yellow';if(o.requested_ship_date===tm&&!o.ready_to_ship)return'orange';if(o.ready_to_ship)return'green';return''}
+function split(t){return String(t||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
+async function show(session){user=session?.user||null;$('loginView').classList.toggle('hidden',!!user);$('appView').classList.toggle('hidden',!user);if(user){$('userEmail').textContent=user.email||'';await load()}}
+async function load(){const{data,error}=await supabase.from('orders').select('*,order_items(*)').order('delivered',{ascending:true}).order('requested_ship_date',{ascending:true}).order('created_at',{ascending:true});if(error){$('refreshText').textContent=error.message;return}orders=(data||[]).map(o=>({...o,order_items:(o.order_items||[]).sort((a,b)=>(a.position||0)-(b.position||0))}));render();$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()}
+function visible(){const f=$('filter').value;return orders.filter(o=>f==='all'||(f==='active'&&!o.delivered)||(f==='ready'&&o.ready_to_ship&&!o.delivered)||(f==='open'&&!o.ready_to_ship&&!o.delivered)||(f==='delivered'&&o.delivered))}
+function render(){const cards=$('cards'),data=visible();cards.innerHTML='';data.forEach(o=>{const d=document.createElement('div');d.className='card '+cls(o);const items=(o.order_items||[]).map(i=>`<li>${esc(i.item_text)}</li>`).join('');d.innerHTML=`<div class="card-top"><div><div class="customer">${esc(o.customer_name)}</div><div class="po">${o.po_number?'PO '+esc(o.po_number):'No PO'}</div></div><div class="date">${fmt(o.requested_ship_date)}</div></div><ul class="items">${items||`<li>${esc(o.order_text||'')}</li>`}</ul><div class="status"><span class="pill">Ready: ${o.ready_to_ship?'Yes':'No'}</span><span class="pill">Delivered: ${o.delivered?'Yes':'No'}</span></div><div class="actions"><button data-edit="${o.id}">Edit</button></div>`;cards.appendChild(d)});$('empty').classList.toggle('hidden',!!data.length)}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginError').textContent='';const{error}=await supabase.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)$('loginError').textContent=error.message};
+$('logout').onclick=async e=>{e.preventDefault();await supabase.auth.signOut()};$('filter').onchange=render;$('refreshBtn').onclick=load;
+$('cards').onclick=e=>{const b=e.target.closest('[data-edit]');if(!b)return;openEdit(b.dataset.edit)};
+function openEdit(id){const o=orders.find(x=>String(x.id)===String(id));if(!o)return;$('editId').value=o.id;$('editCustomer').value=o.customer_name;$('editPo').value=o.po_number||'';$('editDate').value=o.requested_ship_date;$('editOrder').value=(o.order_items||[]).map(i=>i.item_text).join('\n')||o.order_text||'';$('editReady').checked=!!o.ready_to_ship;$('editDelivered').checked=!!o.delivered;$('lotEditor').innerHTML=(o.order_items||[]).map(i=>`<div class="lot-row"><div>${esc(i.item_text)}</div><input data-lot-id="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)"></div>`).join('');$('editError').textContent='';$('modalBack').classList.remove('hidden')}
+$('cancelEdit').onclick=()=>$('modalBack').classList.add('hidden');
+$('editDelivered').onchange=()=>{if($('editDelivered').checked)$('editReady').checked=true};
+$('saveEdit').onclick=async()=>{const id=$('editId').value,o=orders.find(x=>String(x.id)===String(id));if(!o)return;$('editError').textContent='';const lines=split($('editOrder').value);if(!lines.length){$('editError').textContent='Enter at least one order item.';return}
+let ready=$('editReady').checked,delivered=$('editDelivered').checked;if(delivered)ready=true;
+if(ready&&!delivered){const lotInputs=[...$('lotEditor').querySelectorAll('[data-lot-id]')];const missing=lotInputs.filter(i=>!i.value.trim()).length;if(missing&&!confirm(`${missing} order item${missing===1?'':'s'} are missing lot numbers.\n\nMark this order Ready to Ship anyway?`))return}
+const patch={customer_name:$('editCustomer').value.trim(),po_number:$('editPo').value.trim()||null,requested_ship_date:$('editDate').value,order_text:lines.join('\n'),ready_to_ship:ready,delivered,updated_by:user.id,updated_by_email:user.email||null};
+let{error}=await supabase.from('orders').update(patch).eq('id',id);if(error){$('editError').textContent=error.message;return}
+const old=o.order_items||[];const lotMap=new Map([...$('lotEditor').querySelectorAll('[data-lot-id]')].map(i=>[String(i.dataset.lotId),i.value.trim()||null]));
+const rebuilt=lines.map((line,pos)=>({order_id:Number(id),item_text:line,lot_numbers:old[pos]?lotMap.get(String(old[pos].id))||null:null,position:pos,updated_by:user.id,updated_by_email:user.email||null}));
+({error}=await supabase.from('order_items').delete().eq('order_id',id));if(error){$('editError').textContent=error.message;return}
+({error}=await supabase.from('order_items').insert(rebuilt));if(error){$('editError').textContent=error.message;return}
+$('modalBack').classList.add('hidden');await load()};
+const{data:{session}}=await supabase.auth.getSession();await show(session);supabase.auth.onAuthStateChange(async(_e,s)=>await show(s));setInterval(async()=>{if(user)await load()},60000);
+</script>
+</body>
+</html>
