@@ -16,40 +16,62 @@ async function signIn(e){e.preventDefault();const email=e.currentTarget.querySel
 async function loadOrders(){const{data,error}=await supabase.from('orders').select('*,order_items(*)').order('shipped',{ascending:true}).order('requested_delivery_date',{ascending:true,nullsFirst:false}).order('created_at',{ascending:true});if(error){if($('refreshText'))$('refreshText').textContent=error.message;return}orders=(data||[]).map(o=>({...o,order_items:(o.order_items||[]).sort((a,b)=>(a.position||0)-(b.position||0))}));if($('refreshText'))$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.'}
 function setupPo(prefix=''){const po=$(prefix+'po'),f=$(prefix+'poFollow'),n=$(prefix+'noPo');if(!po||!f||!n)return;f.onchange=()=>{if(f.checked){n.checked=false;po.value=''}};n.onchange=()=>{if(n.checked){f.checked=false;po.value=''}};po.oninput=()=>{if(po.value.trim()){f.checked=false;n.checked=false}}}
 function getPo(prefix=''){const po=$(prefix+'po').value.trim()||null;return po?{po_number:po,po_status:'provided'}:$(prefix+'poFollow').checked?{po_number:null,po_status:'to_follow'}:$(prefix+'noPo').checked?{po_number:null,po_status:'no_po_required'}:null}
-function filtered(){
-  const f=$('filter')?.value||'active',
-        q=($('search')?.value||'').trim().toLowerCase(),
-        dateFrom=$('dateFrom')?.value||'',
-        dateTo=$('dateTo')?.value||'';
+function filtered(){const f=$('filter')?.value||'active',q=($('search')?.value||'').trim().toLowerCase(),dateFrom=$('dateFrom')?.value||'',dateTo=$('dateTo')?.value||'';return orders.filter(o=>{const hay=[o.customer_name,o.po_number,o.po_status,o.order_text,o.requested_delivery_date,o.scheduled_pickup_date,(o.order_items||[]).map(i=>i.item_text+' '+(i.lot_numbers||'')).join(' ')].join(' ').toLowerCase();if(q&&!hay.includes(q))return false;if(page==='desktop'){const d=o.requested_delivery_date||'';if(dateFrom&&(!d||d<dateFrom))return false;if(dateTo&&(!d||d>dateTo))return false}return f==='all'||(f==='active'&&!o.shipped)||(f==='open'&&!o.ready_to_ship&&!o.shipped)||(f==='back'&&o.back_ordered&&!o.shipped)||(f==='ready'&&o.ready_to_ship&&!o.shipped)||(f==='scheduled'&&o.scheduled&&!o.shipped)||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)||(f==='shipped'&&o.shipped)})}
+function itemRows(o,editable=true){return (o.order_items||[]).map(i=>{const p=parseOrderLine(i.item_text);return `<div class="item-row"><div>${esc(p.qty)}</div><div>${esc(p.container)}</div><div>${esc(p.item)}</div>${editable?`<input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot(s)" ${o.shipped?'disabled':''}>`:`<div>${esc(i.lot_numbers||'')}</div>`}</div>`}).join('')}
+async function changeTracker(e){const t=e.target;if(t.dataset.lot){await supabase.from('order_items').update({lot_numbers:t.value.trim()||null,updated_by:user.id,updated_by_email:user.email||null}).eq('id',t.dataset.lot);await trackerLoad();return}const id=t.dataset.back||t.dataset.ready||t.dataset.scheduled||t.dataset.pickup||t.dataset.shipped;if(!id)return;const o=orders.find(x=>String(x.id)===String(id));let patch={updated_by:user.id,updated_by_email:user.email||null};if(t.dataset.back)patch.back_ordered=t.checked;if(t.dataset.ready){if(t.checked){const missing=(o.order_items||[]).filter(i=>!String(i.lot_numbers||'').trim()).length;if(missing&&!confirm(`${missing} item(s) are missing lot numbers. Mark Ready anyway?`)){t.checked=false;return}}patch.ready_to_ship=t.checked}if(t.dataset.scheduled){patch.scheduled=t.checked;if(!t.checked)patch.scheduled_pickup_date=null}if(t.dataset.pickup){patch.scheduled_pickup_date=t.value||null;if(t.value)patch.scheduled=true}if(t.dataset.shipped)patch.shipped=t.checked;const{error}=await supabase.from('orders').update(patch).eq('id',id);if(error)alert(error.message);await trackerLoad()}
+function csvCell(v){const s=String(v??'');return `"${s.replace(/"/g,'""')}"`}
+function orderStatusText(o){const s=[];if(o.back_ordered)s.push('Back Ordered');if(o.ready_to_ship)s.push('Ready');if(o.scheduled)s.push('Scheduled');if(o.shipped)s.push('Shipped');return s.length?s.join('; '):'Open'}
+function exportDesktopCsv(){const rows=filtered(),h=['Order ID','Requested Delivery Date','Customer','PO Number','PO Status','Order Items','Lot Numbers','Back Ordered','Ready','Scheduled','Scheduled Pickup Date','Shipped','Status','Created By','Created At','Updated By','Updated At'],lines=[h.map(csvCell).join(',')];rows.forEach(o=>lines.push([o.id,o.requested_delivery_date||'',o.customer_name||'',o.po_number||'',o.po_status||'',(o.order_items||[]).map(i=>i.item_text).join(' | '),(o.order_items||[]).map(i=>i.lot_numbers||'').join(' | '),o.back_ordered?'Yes':'No',o.ready_to_ship?'Yes':'No',o.scheduled?'Yes':'No',o.scheduled_pickup_date||'',o.shipped?'Yes':'No',orderStatusText(o),o.created_by_email||'',o.created_at||'',o.updated_by_email||'',o.updated_at||''].map(csvCell).join(',')));const b=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`B&L_Neeley_Orders_${localDateString(new Date())}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u)}
+async function trackerLoad(){await loadOrders();const body=$('body');body.innerHTML='';filtered().forEach(o=>{const tr=document.createElement('tr');tr.className=statusClass(o);tr.innerHTML=`<td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td><td><strong>${esc(o.customer_name)}</strong></td><td>${poLabel(o)}</td><td class="items"><div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>${itemRows(o,true)}</td><td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td><td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>${(page==='desktop'||page==='tracker')?`<td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`:''}`;body.appendChild(tr)});if(page==='desktop'||page==='tracker')wireOrderActions()}
+async function forecastLoad(){const{data,error}=await supabase.from('orders').select('id,ready_to_ship,scheduled,shipped,back_ordered,order_items(*)').eq('ready_to_ship',false).eq('scheduled',false).eq('shipped',false);if(error){$('refreshText').textContent=error.message;return}const gs=new Map(),os=data||[];let ic=0;os.forEach(o=>(o.order_items||[]).forEach(i=>{ic++;const p=parseOrderLine(i.item_text),name=(p.item||i.item_text).trim(),key=name.toLowerCase().replace(/\s+/g,' '),qty=Number(p.qty)||0,cont=p.container||'Unparsed';if(!gs.has(key))gs.set(key,{name,containers:new Map(),gallons:0});const g=gs.get(key);g.containers.set(cont,(g.containers.get(cont)||0)+qty);const gal=containerGallons(cont);if(gal!==null)g.gallons+=qty*gal}));$('orderCount').textContent=os.length;$('itemCount').textContent=ic;const list=[...gs.values()].sort((a,b)=>a.name.localeCompare(b.name));$('products').innerHTML=list.length?list.map(g=>`<div class="product"><h2>${esc(g.name)}</h2><div class="breakdown">${[...g.containers.entries()].map(([c,q])=>`<div>${esc(c)}</div><div><strong>${q}</strong> container${q===1?'':'s'}</div>`).join('')}</div><div class="total">Total gallons: ${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`).join(''):'<div class="panel">No pending blending demand.</div>';$('totals').innerHTML=list.map(g=>`<tr><td>${esc(g.name)}</td><td><strong>${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td></tr>`).join('');$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.'}
+async function newOrderSubmit(e){e.preventDefault();const po=getPo('');if(!po){$('msg').className='error';$('msg').textContent='Enter a PO number, select PO to Follow, or select No PO Required.';return}const lines=splitItems($('orderText').value);const payload={customer_name:$('customer').value.trim(),...po,requested_delivery_date:$('date').value||null,order_text:lines.join('\n'),back_ordered:$('backOrdered').checked,ready_to_ship:false,scheduled:false,scheduled_pickup_date:null,shipped:false,created_by:user.id,created_by_email:user.email||null,updated_by:user.id,updated_by_email:user.email||null};const{data:o,error}=await supabase.from('orders').insert(payload).select().single();if(error){$('msg').className='error';$('msg').textContent=error.message;return}const{error:ie}=await supabase.from('order_items').insert(lines.map((item_text,position)=>({order_id:o.id,item_text,position})));if(ie){await supabase.from('orders').delete().eq('id',o.id);$('msg').className='error';$('msg').textContent=ie.message;return}e.currentTarget.reset();$('msg').className='success success-box';$('msg').innerHTML=`<strong>Order added successfully.</strong><div class="success-actions"><a class="success-link" href="mobile.html?order=${o.id}">View Order</a><button type="button" class="success-new" id="newAnother">Add Another Order</button></div>`;setTimeout(()=>document.getElementById('newAnother')?.addEventListener('click',()=>{ $('msg').className=''; $('msg').innerHTML=''; $('customer').focus(); }),0)}
 
-  return orders.filter(o=>{
-    const hay=[
-      o.customer_name,
-      o.po_number,
-      o.po_status,
-      o.order_text,
-      o.requested_delivery_date,
-      o.scheduled_pickup_date,
-      (o.order_items||[]).map(i=>i.item_text+' '+(i.lot_numbers||'')).join(' ')
-    ].join(' ').toLowerCase();
-
-    if(q&&!hay.includes(q)) return false;
-
-    if(page==='desktop'){
-      const d=o.requested_delivery_date||'';
-      if(dateFrom && (!d || d<dateFrom)) return false;
-      if(dateTo && (!d || d>dateTo)) return false;
-    }
-
-    return f==='all'
-      ||(f==='active'&&!o.shipped)
-      ||(f==='open'&&!o.ready_to_ship&&!o.shipped)
-      ||(f==='back'&&o.back_ordered&&!o.shipped)
-      ||(f==='ready'&&o.ready_to_ship&&!o.shipped)
-      ||(f==='scheduled'&&o.scheduled&&!o.shipped)
-      ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
-      ||(f==='shipped'&&o.shipped);
-  });
+function ensureEditModal(){
+  if(document.getElementById('editModal')) return;
+  const wrap=document.createElement('div');
+  wrap.id='editModal'; wrap.className='modal hidden';
+  wrap.innerHTML=`<div class="modal-card">
+    <div class="modal-head"><h2>Edit Order</h2><button type="button" class="icon-btn" id="closeEdit">×</button></div>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+      <label>Customer Name</label><input id="editCustomer" required>
+      <label>PO Number</label><input id="editPo">
+      <div class="po-options"><label class="check"><input id="editPoFollow" type="checkbox"> PO to Follow</label><label class="check"><input id="editNoPo" type="checkbox"> No PO Required</label></div>
+      <label>Requested Delivery Date <span class="small">(optional)</span></label><input id="editDate" type="date">
+      <label>Order <span class="small">(one item per line)</span></label><textarea id="editOrderText" rows="7" required></textarea>
+      <div id="editLots"></div>
+      <div class="edit-status-grid">
+        <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
+        <label class="check"><input id="editReady" type="checkbox"> Ready</label>
+        <label class="check"><input id="editScheduled" type="checkbox"> Scheduled</label>
+        <label class="check"><input id="editShipped" type="checkbox"> Shipped</label>
+      </div>
+      <label>Scheduled Pickup Date <span class="small">(optional)</span></label><input id="editPickup" type="date">
+      <div class="modal-actions">
+        <button type="button" id="cancelEdit">Cancel</button>
+        <button class="primary" id="saveEdit">Save Changes</button>
+        <button type="button" class="danger-btn" id="deleteEdit">Delete Order</button>
+      </div>
+      <div id="editError" class="error"></div>
+    </form>
+  </div>`;
+  document.body.appendChild(wrap);
+  $('closeEdit').onclick=closeEditModal; $('cancelEdit').onclick=closeEditModal;
+  $('deleteEdit').onclick=async()=>{
+    const id=$('editId').value;
+    const o=orders.find(x=>String(x.id)===String(id));
+    if(!o)return;
+    if(!confirm(`Delete the order for ${o.customer_name}?\n\nThis permanently deletes the order and its line items.`))return;
+    const{error}=await supabase.from('orders').delete().eq('id',id);
+    if(error){$('editError').textContent=error.message;return}
+    closeEditModal();
+    if(page==='mobile')await mobileLoad(); else await trackerLoad();
+  };
+  wrap.addEventListener('click',e=>{if(e.target===wrap)closeEditModal()});
+  setupPo('edit');
+  $('editForm').addEventListener('submit',saveEditOrder);
+  $('editPickup').addEventListener('change',()=>{if($('editPickup').value)$('editScheduled').checked=true});
+  $('editScheduled').addEventListener('change',()=>{if(!$('editScheduled').checked)$('editPickup').value=''});
 }
 function closeEditModal(){document.getElementById('editModal')?.classList.add('hidden')}
 function renderEditLots(o){
@@ -98,24 +120,7 @@ function wireOrderActions(){
   document.querySelectorAll('[data-edit-order]').forEach(b=>b.onclick=()=>openEditOrder(b.dataset.editOrder));
 }
 async function mobileLoad(){await loadOrders();const directId=new URLSearchParams(location.search).get('order');let mobileOrders=filtered();if(directId){const direct=orders.find(o=>String(o.id)===String(directId));if(direct)mobileOrders=[direct]}if(directId){const note=document.getElementById('directOrderNote');if(note)note.classList.remove('hidden')}else{const note=document.getElementById('directOrderNote');if(note)note.classList.add('hidden')}$('cards').innerHTML=mobileOrders.map(o=>`<div class="order-card ${statusClass(o)}"><div class="card-top"><div><div class="customer">${esc(o.customer_name)}</div><div class="small">${poLabel(o)}</div></div><div><strong>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'No requested date'}</strong></div></div><ul>${(o.order_items||[]).map(i=>`<li>${esc(i.item_text)}</li>`).join('')}</ul><span class="pill">Back Ordered: ${o.back_ordered?'Yes':'No'}</span><span class="pill">Ready: ${o.ready_to_ship?'Yes':'No'}</span><span class="pill">Scheduled: ${o.scheduled?'Yes':'No'}</span>${o.scheduled_pickup_date?`<span class="pill">Pickup: ${fmtDate(o.scheduled_pickup_date)}</span>`:''}<span class="pill">Shipped: ${o.shipped?'Yes':'No'}</span><div class="card-actions"><button type="button" data-edit-order="${o.id}">Edit Order</button></div></div>`).join('');wireOrderActions()}
-async function initPage(){if(page==='home')return;if(page==='new'){setupPo();$('form').onsubmit=newOrderSubmit;return}if(page==='tracker'){await trackerLoad();$('body').addEventListener('change',changeTracker);$('search').oninput=trackerLoad;$('filter').onchange=trackerLoad;$('refreshBtn').onclick=trackerLoad;return}if(page==='blending'){await forecastLoad();$('refreshBtn').onclick=forecastLoad;return}if(page==='mobile'){await mobileLoad();$('filter').onchange=mobileLoad;$('refreshBtn').onclick=mobileLoad;return}if(page==='desktop'){
-  await trackerLoad();
-  $('body').addEventListener('change',changeTracker);
-  $('search').oninput=trackerLoad;
-  $('filter').onchange=trackerLoad;
-  $('dateFrom').onchange=trackerLoad;
-  $('dateTo').onchange=trackerLoad;
-  $('refreshBtn').onclick=trackerLoad;
-  $('exportCsv').onclick=exportDesktopCsv;
-  $('clearFilters').onclick=async()=>{
-    $('search').value='';
-    $('filter').value='active';
-    $('dateFrom').value='';
-    $('dateTo').value='';
-    await trackerLoad();
-  };
-  return
-}}
+async function initPage(){if(page==='home')return;if(page==='new'){setupPo();$('form').onsubmit=newOrderSubmit;return}if(page==='tracker'){await trackerLoad();$('body').addEventListener('change',changeTracker);$('search').oninput=trackerLoad;$('filter').onchange=trackerLoad;$('refreshBtn').onclick=trackerLoad;return}if(page==='blending'){await forecastLoad();$('refreshBtn').onclick=forecastLoad;return}if(page==='mobile'){await mobileLoad();$('filter').onchange=mobileLoad;$('refreshBtn').onclick=mobileLoad;return}if(page==='desktop'){await trackerLoad();$('body').addEventListener('change',changeTracker);$('search').oninput=trackerLoad;$('filter').onchange=trackerLoad;$('dateFrom').onchange=trackerLoad;$('dateTo').onchange=trackerLoad;$('refreshBtn').onclick=trackerLoad;$('exportCsv').onclick=exportDesktopCsv;$('clearFilters').onclick=async()=>{$('search').value='';$('filter').value='active';$('dateFrom').value='';$('dateTo').value='';await trackerLoad()};return}}
 document.querySelectorAll('.login-form').forEach(f=>f.addEventListener('submit',signIn));document.querySelectorAll('.logout').forEach(a=>a.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut()}));const{data:{session}}=await supabase.auth.getSession();await showSession(session);supabase.auth.onAuthStateChange(async(_e,s)=>await showSession(s));setInterval(async()=>{if(!user)return;if(page==='tracker'||page==='desktop')await trackerLoad();if(page==='blending')await forecastLoad();if(page==='mobile')await mobileLoad()},60000);
 
 
