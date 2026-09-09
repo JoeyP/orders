@@ -45,3 +45,35 @@ label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}input,texta
   color:#166534;
   border:1px solid #86efac;
 }
+
+.desktop-admin-toolbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+.desktop-filter-grid{
+  display:grid;
+  grid-template-columns:minmax(240px,1.6fr) minmax(160px,.8fr) minmax(150px,.7fr) minmax(150px,.7fr) auto;
+  gap:8px;
+  align-items:center;
+  flex:1 1 760px;
+}
+.desktop-admin-actions{
+  display:flex;
+  gap:8px;
+  flex:0 0 auto;
+}
+.desktop-filter-grid input,
+.desktop-filter-grid select,
+.desktop-admin-actions button,
+.desktop-filter-grid button{
+  min-height:42px;
+}
+@media(max-width:1050px){
+  .desktop-filter-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
