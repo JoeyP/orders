@@ -24,7 +24,112 @@ function orderStatusText(o){const s=[];if(o.back_ordered)s.push('Back Ordered');
 function exportDesktopCsv(){const rows=filtered(),h=['Order ID','Requested Delivery Date','Customer','PO Number','PO Status','Order Items','Lot Numbers','Back Ordered','Ready','Scheduled','Scheduled Pickup Date','Shipped','Status','Created By','Created At','Updated By','Updated At'],lines=[h.map(csvCell).join(',')];rows.forEach(o=>lines.push([o.id,o.requested_delivery_date||'',o.customer_name||'',o.po_number||'',o.po_status||'',(o.order_items||[]).map(i=>i.item_text).join(' | '),(o.order_items||[]).map(i=>i.lot_numbers||'').join(' | '),o.back_ordered?'Yes':'No',o.ready_to_ship?'Yes':'No',o.scheduled?'Yes':'No',o.scheduled_pickup_date||'',o.shipped?'Yes':'No',orderStatusText(o),o.created_by_email||'',o.created_at||'',o.updated_by_email||'',o.updated_at||''].map(csvCell).join(',')));const b=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`B&L_Neeley_Orders_${localDateString(new Date())}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u)}
 async function trackerLoad(){await loadOrders();const body=$('body');body.innerHTML='';filtered().forEach(o=>{const tr=document.createElement('tr');tr.className=statusClass(o);tr.innerHTML=`<td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td><td><strong>${esc(o.customer_name)}</strong></td><td>${poLabel(o)}</td><td class="items"><div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>${itemRows(o,true)}</td><td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td><td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td><td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>${(page==='desktop'||page==='tracker')?`<td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`:''}`;body.appendChild(tr)});if(page==='desktop'||page==='tracker')wireOrderActions()}
 async function forecastLoad(){const{data,error}=await supabase.from('orders').select('id,ready_to_ship,scheduled,shipped,back_ordered,order_items(*)').eq('ready_to_ship',false).eq('scheduled',false).eq('shipped',false);if(error){$('refreshText').textContent=error.message;return}const gs=new Map(),os=data||[];let ic=0;os.forEach(o=>(o.order_items||[]).forEach(i=>{ic++;const p=parseOrderLine(i.item_text),name=(p.item||i.item_text).trim(),key=name.toLowerCase().replace(/\s+/g,' '),qty=Number(p.qty)||0,cont=p.container||'Unparsed';if(!gs.has(key))gs.set(key,{name,containers:new Map(),gallons:0});const g=gs.get(key);g.containers.set(cont,(g.containers.get(cont)||0)+qty);const gal=containerGallons(cont);if(gal!==null)g.gallons+=qty*gal}));$('orderCount').textContent=os.length;$('itemCount').textContent=ic;const list=[...gs.values()].sort((a,b)=>a.name.localeCompare(b.name));$('products').innerHTML=list.length?list.map(g=>`<div class="product"><h2>${esc(g.name)}</h2><div class="breakdown">${[...g.containers.entries()].map(([c,q])=>`<div>${esc(c)}</div><div><strong>${q}</strong> container${q===1?'':'s'}</div>`).join('')}</div><div class="total">Total gallons: ${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`).join(''):'<div class="panel">No pending blending demand.</div>';$('totals').innerHTML=list.map(g=>`<tr><td>${esc(g.name)}</td><td><strong>${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td></tr>`).join('');$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.'}
-async function newOrderSubmit(e){e.preventDefault();const po=getPo('');if(!po){$('msg').className='error';$('msg').textContent='Enter a PO number, select PO to Follow, or select No PO Required.';return}const lines=splitItems($('orderText').value);const payload={customer_name:$('customer').value.trim(),...po,requested_delivery_date:$('date').value||null,order_text:lines.join('\n'),back_ordered:$('backOrdered').checked,ready_to_ship:false,scheduled:false,scheduled_pickup_date:null,shipped:false,created_by:user.id,created_by_email:user.email||null,updated_by:user.id,updated_by_email:user.email||null};const{data:o,error}=await supabase.from('orders').insert(payload).select().single();if(error){$('msg').className='error';$('msg').textContent=error.message;return}const{error:ie}=await supabase.from('order_items').insert(lines.map((item_text,position)=>({order_id:o.id,item_text,position})));if(ie){await supabase.from('orders').delete().eq('id',o.id);$('msg').className='error';$('msg').textContent=ie.message;return}e.currentTarget.reset();$('msg').className='success success-box';$('msg').innerHTML=`<strong>Order added successfully.</strong><div class="success-actions"><a class="success-link" href="mobile.html?order=${o.id}">View Order</a><button type="button" class="success-new" id="newAnother">Add Another Order</button></div>`;setTimeout(()=>document.getElementById('newAnother')?.addEventListener('click',()=>{ $('msg').className=''; $('msg').innerHTML=''; $('customer').focus(); }),0)}
+let newOrderSubmitting=false;
+async function newOrderSubmit(e){
+  e.preventDefault();
+  if(newOrderSubmitting)return;
+
+  const form=e.currentTarget;
+  const submitBtn=form.querySelector('button[type="submit"],button.primary.full');
+  const originalBtnText=submitBtn?.textContent||'Submit Order';
+
+  const po=getPo('');
+  if(!po){
+    $('msg').className='error';
+    $('msg').textContent='Enter a PO number, select PO to Follow, or select No PO Required.';
+    return;
+  }
+
+  const lines=splitItems($('orderText').value);
+  if(!$('customer').value.trim()||!lines.length){
+    $('msg').className='error';
+    $('msg').textContent='Enter a customer and at least one order item.';
+    return;
+  }
+
+  newOrderSubmitting=true;
+  if(submitBtn){
+    submitBtn.disabled=true;
+    submitBtn.textContent='Submitting…';
+  }
+  $('msg').className='submit-status';
+  $('msg').textContent='Saving order…';
+
+  try{
+    const payload={
+      customer_name:$('customer').value.trim(),
+      ...po,
+      requested_delivery_date:$('date').value||null,
+      order_text:lines.join('\n'),
+      back_ordered:$('backOrdered').checked,
+      ready_to_ship:false,
+      scheduled:false,
+      scheduled_pickup_date:null,
+      shipped:false,
+      created_by:user.id,
+      created_by_email:user.email||null,
+      updated_by:user.id,
+      updated_by_email:user.email||null
+    };
+
+    const{data:o,error}=await supabase.from('orders').insert(payload).select().single();
+    if(error)throw error;
+
+    const{error:ie}=await supabase.from('order_items').insert(
+      lines.map((item_text,position)=>({order_id:o.id,item_text,position}))
+    );
+    if(ie){
+      await supabase.from('orders').delete().eq('id',o.id);
+      throw ie;
+    }
+
+    form.reset();
+    $('msg').className='success success-box';
+    $('msg').innerHTML=`<strong>Order #${o.id} added successfully.</strong>`;
+    showNewOrderSuccess(o);
+  }catch(err){
+    $('msg').className='error';
+    $('msg').textContent=err?.message||'The order could not be saved. Please try again.';
+  }finally{
+    newOrderSubmitting=false;
+    if(submitBtn){
+      submitBtn.disabled=false;
+      submitBtn.textContent=originalBtnText;
+    }
+  }
+}
+
+function showNewOrderSuccess(o){
+  let modal=document.getElementById('newOrderSuccessModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='newOrderSuccessModal';
+    modal.className='success-modal hidden';
+    modal.innerHTML=`
+      <div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="newOrderSuccessTitle">
+        <div class="success-check">✓</div>
+        <h2 id="newOrderSuccessTitle">Order Added Successfully</h2>
+        <p id="newOrderSuccessDetail"></p>
+        <div class="success-modal-actions">
+          <a id="viewNewOrder" class="primary success-modal-button" href="#">View Order</a>
+          <button id="addAnotherOrder" type="button" class="success-modal-button">Add Another Order</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  document.getElementById('newOrderSuccessDetail').textContent=
+    `${o.customer_name} · Order #${o.id}`;
+  document.getElementById('viewNewOrder').href=`mobile.html?order=${o.id}`;
+  modal.classList.remove('hidden');
+
+  document.getElementById('addAnotherOrder').onclick=()=>{
+    modal.classList.add('hidden');
+    $('msg').className='';
+    $('msg').textContent='';
+    $('customer').focus();
+  };
+}
 
 function ensureEditModal(){
   if(document.getElementById('editModal')) return;
