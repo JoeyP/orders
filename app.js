@@ -9,7 +9,58 @@ function fmtDate(s){if(!s)return'';const[y,m,d]=s.split('-').map(Number);return 
 function localDateString(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function statusClass(o){if(o.shipped)return'gray';if(o.back_ordered)return'charcoal';if(!o.requested_delivery_date)return'';const t=localDateString(new Date()),tm=(()=>{const d=new Date();d.setDate(d.getDate()+1);return localDateString(d)})();if(o.requested_delivery_date<t&&!o.ready_to_ship)return'red';if(o.requested_delivery_date===t&&!o.ready_to_ship)return'red';if(o.requested_delivery_date===t&&o.ready_to_ship)return'yellow';if(o.requested_delivery_date===tm&&!o.ready_to_ship)return'orange';if(o.ready_to_ship)return'green';return''}
 function poLabel(o){if(o.po_number)return`PO ${esc(o.po_number)}`;if(o.po_status==='to_follow')return'PO TO FOLLOW';if(o.po_status==='no_po_required')return'NO PO REQUIRED';return'PO NOT SET'}
-function parseOrderLine(raw){const text=String(raw||'').trim();let m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(\d+(?:\.\d+)?)\s*(g|gal|gallon|gallons|lb|lbs|pound|pounds|oz|ounce|ounces|kg|l|liter|liters|litre|litres)\b\s*(.*)$/i);if(m){let u=m[3].toLowerCase();if(['g','gal','gallon','gallons'].includes(u))u='gal';else if(['lb','lbs','pound','pounds'].includes(u))u='lb';else if(['oz','ounce','ounces'].includes(u))u='oz';else if(u==='kg')u='kg';else u='L';return{qty:m[1],container:`${m[2]} ${u}`,item:(m[4]||'').trim()}}m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(drum|drums|tote|totes|pail|pails|case|cases|bag|bags)\b\s*(.*)$/i);if(m){const c=m[2].replace(/s$/i,'');return{qty:m[1],container:c[0].toUpperCase()+c.slice(1).toLowerCase(),item:(m[3]||'').trim()}}m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(.*)$/);if(m&&m[2].trim())return{qty:m[1],container:'',item:m[2].trim()};return{qty:'',container:'',item:text}}
+function parseOrderLine(raw){
+  const text=String(raw||'').trim();
+  if(!text)return{qty:'',container:'',item:''};
+
+  const normalizeUnit=u=>{
+    u=String(u||'').toLowerCase();
+    if(['g','gal','gallon','gallons'].includes(u))return'gal';
+    if(['lb','lbs','pound','pounds'].includes(u))return'lb';
+    if(['oz','ounce','ounces'].includes(u))return'oz';
+    if(u==='kg')return'kg';
+    if(['l','liter','liters','litre','litres'].includes(u))return'L';
+    return'';
+  };
+
+  let m;
+
+  // Explicit numeric container with unit:
+  // 1 - 55g Product, 1x55 gal Product, 1 (55g) Product, 1(55)g Product.
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(g|gal|gallon|gallons|lb|lbs|pound|pounds|oz|ounce|ounces|kg|l|liter|liters|litre|litres)\s*\)?\s*(.*)$/i);
+  if(m){
+    const u=normalizeUnit(m[3]);
+    return{qty:m[1],container:`${m[2]} ${u}`,item:(m[4]||'').trim()};
+  }
+
+  // Parenthesized bare container size defaults to gallons:
+  // 1 (55) Product, 1(55) Product.
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*\(\s*(\d+(?:\.\d+)?)\s*\)\s*(.*)$/);
+  if(m&&m[3].trim()){
+    return{qty:m[1],container:`${m[2]} gal`,item:m[3].trim()};
+  }
+
+  // Two leading numbers with a clear separator/default pattern.
+  // Bare container size defaults to gallons:
+  // 1 x 55 Product, 1-55 Product, 1 - 55 Product, 1 55 Product.
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\s+)(\d+(?:\.\d+)?)\s+(.*)$/);
+  if(m&&m[3].trim()){
+    return{qty:m[1],container:`${m[2]} gal`,item:m[3].trim()};
+  }
+
+  // Named containers remain supported:
+  // 2 drums Product, 1 x tote Product.
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(drum|drums|tote|totes|pail|pails|case|cases|bag|bags)\b\s*(.*)$/i);
+  if(m){
+    const c=m[2].replace(/s$/i,'');
+    return{qty:m[1],container:c[0].toUpperCase()+c.slice(1).toLowerCase(),item:(m[3]||'').trim()};
+  }
+
+  // Fall back safely: capture only quantity and preserve the rest as the item.
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(.*)$/);
+  if(m&&m[2].trim())return{qty:m[1],container:'',item:m[2].trim()};
+  return{qty:'',container:'',item:text};
+}
 function containerGallons(c){const m=String(c||'').match(/^(\d+(?:\.\d+)?)\s+gal$/i);return m?Number(m[1]):null}
 async function showSession(s){user=s?.user||null;document.querySelectorAll('[data-auth=login]').forEach(x=>x.classList.toggle('hidden',!!user));document.querySelectorAll('[data-auth=app]').forEach(x=>x.classList.toggle('hidden',!user));if(user){document.querySelectorAll('.user-email').forEach(x=>x.textContent=user.email||'');await initPage()}}
 async function signIn(e){e.preventDefault();const email=e.currentTarget.querySelector('[name=email]').value.trim(),password=e.currentTarget.querySelector('[name=password]').value;const{error}=await supabase.auth.signInWithPassword({email,password});const er=e.currentTarget.querySelector('.error');if(er)er.textContent=error?error.message:''}
