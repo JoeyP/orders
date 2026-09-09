@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Desktop Orders - B&L Neeley</title>
+<style>
+
+:root{
+  --bg:#f4f6f8;--card:#fff;--text:#1f2937;--muted:#6b7280;--border:#d1d5db;
+  --accent:#2563eb;--danger:#b91c1c;--red:#fecaca;--yellow:#fef3c7;
+  --orange:#fed7aa;--green:#dcfce7;--gray:#f3f4f6
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.hidden{display:none!important}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;font-weight:700}
+.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.secondary{background:#fff}
+.error{color:var(--danger);font-size:13px;margin-top:8px}
+
+.wrap{max-width:1600px;margin:auto;padding:22px}.top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}h1{margin:0}
+.links{display:flex;gap:8px;flex-wrap:wrap}.links a{text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-weight:700;font-size:13px}
+.panel{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:15px}
+.formgrid{display:grid;grid-template-columns:1.1fr 1fr 1fr 2fr;gap:10px;align-items:end}label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}input,textarea,select,button{border:1px solid var(--border);border-radius:8px;padding:9px;max-width:100%;min-width:0}input[type="date"]{width:100%;max-width:100%;min-width:0;box-sizing:border-box}textarea{width:100%;min-height:76px;resize:vertical}
+.po-line{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}.po-check{display:flex;gap:5px;align-items:center;font-size:11px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:8px;background:#fafafa;white-space:nowrap}.po-check input{width:17px;height:17px}
+.toolbar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}.toolbar div{display:flex;gap:8px;flex-wrap:wrap}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:1250px}th,td{padding:9px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}th{font-size:12px;background:#f9fafb;position:sticky;top:0;z-index:1}
+tr.red{background:var(--red)}tr.yellow{background:var(--yellow)}tr.orange{background:var(--orange)}tr.green{background:var(--green)}tr.gray{background:var(--gray);color:var(--muted)}
+.items{min-width:520px}.head,.row{display:grid;grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px);gap:8px;align-items:center}.head{font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;border-bottom:1px solid rgba(0,0,0,.15);padding-bottom:4px}.row{padding:6px 0;border-bottom:1px dashed rgba(0,0,0,.15)}.lot{width:100%;background:#fff}.chk{text-align:center}.chk input{width:21px;height:21px}.actions{display:flex;gap:5px;flex-wrap:wrap}.actions button{padding:7px 8px;font-size:11px;background:#fff}.danger{color:var(--danger)}.small{font-size:12px;color:var(--muted)}.empty{text-align:center;color:var(--muted);padding:28px}.login{max-width:420px;margin:60px auto;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px}.login input,.login button{width:100%}
+@media(max-width:1000px){.formgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="loginView" class="login"><h2>Desktop Orders</h2><form id="loginForm"><label>Email</label><input id="email" type="email" required><div style="height:8px"></div><label>Password</label><input id="password" type="password" required><div style="height:12px"></div><button class="primary">Sign In</button><div id="loginError" class="error"></div></form></div>
+
+<div id="appView" class="wrap hidden">
+<div class="top"><div><h1>Desktop Orders</h1><div class="small">Full order management</div></div><div class="links"><a href="index.html">Home</a><a href="new.html">New Order</a><a href="mobile.html">Mobile</a><a href="blending.html">Blending</a><a href="#" id="logout">Log out</a></div></div>
+
+<div class="panel">
+<form id="form"><input id="editId" type="hidden">
+<div class="formgrid">
+<div><label>Customer</label><input id="customer" required></div>
+<div><label>PO</label><div class="po-line"><input id="po"><label class="po-check"><input id="poFollow" type="checkbox"> To Follow</label><label class="po-check"><input id="noPo" type="checkbox"> No PO</label></div></div>
+<div><label>Requested Ship Date</label><input id="date" type="date" required></div>
+<div><label>Order — one item per line</label><textarea id="orderText" required></textarea></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:10px"><button class="primary" id="saveBtn">Add Order</button><button type="button" id="cancelBtn" class="hidden">Cancel Edit</button></div><div id="formError" class="error"></div>
+</form>
+</div>
+
+<div class="panel">
+<div class="toolbar"><div><input id="search" placeholder="Search customer, PO, item, lot..."><select id="filter"><option value="active">Active Orders</option><option value="open">Open</option><option value="ready">Ready</option><option value="po_follow">PO to Follow</option><option value="delivered">Delivered</option><option value="all">All Orders</option></select></div><div><button id="refreshBtn">Refresh</button><button id="exportBtn">Export CSV</button></div></div>
+<div class="small" id="refreshText"></div>
+<div class="tablewrap"><table><thead><tr><th>Ship Date</th><th>Customer</th><th>PO</th><th>Order / Lots</th><th>Ready</th><th>Delivered</th><th>Updated By</th><th>Actions</th></tr></thead><tbody id="body"></tbody></table><div id="empty" class="empty hidden">No orders found.</div></div>
+</div>
+</div>
+
+<script type="module">
+import{createClient}from'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import{SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY}from'./config.js';
+const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+
+const $=id=>document.getElementById(id);
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function splitItems(t){return String(t||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
+function localDateString(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function tomorrowString(){const d=new Date();d.setDate(d.getDate()+1);return localDateString(d)}
+function fmtDate(s){if(!s)return'';const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
+function statusClass(o){
+  if(o.delivered) return 'gray';
+  const t=localDateString(new Date()),tm=tomorrowString();
+  if(o.requested_ship_date<t&&!o.ready_to_ship) return 'red';
+  if(o.requested_ship_date===t&&!o.ready_to_ship) return 'red';
+  if(o.requested_ship_date===t&&o.ready_to_ship) return 'yellow';
+  if(o.requested_ship_date===tm&&!o.ready_to_ship) return 'orange';
+  if(o.ready_to_ship) return 'green';
+  return '';
+}
+function poLabel(o){
+  if(o.po_number) return `PO ${esc(o.po_number)}`;
+  if(o.po_status==='to_follow') return 'PO TO FOLLOW';
+  if(o.po_status==='no_po_required') return 'NO PO REQUIRED';
+  return 'PO NOT SET';
+}
+
+
+function parseOrderLine(raw){
+  const text=String(raw||'').trim();
+  if(!text) return {qty:'',container:'',item:''};
+
+  let m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(\d+(?:\.\d+)?)\s*(g|gal|gallon|gallons|lb|lbs|pound|pounds|oz|ounce|ounces|kg|l|liter|liters|litre|litres)\b\s*(.*)$/i);
+  if(m){
+    let unit=m[3].toLowerCase();
+    if(['g','gal','gallon','gallons'].includes(unit)) unit='gal';
+    else if(['lb','lbs','pound','pounds'].includes(unit)) unit='lb';
+    else if(['oz','ounce','ounces'].includes(unit)) unit='oz';
+    else if(unit==='kg') unit='kg';
+    else unit='L';
+    return {qty:m[1],container:`${m[2]} ${unit}`,item:(m[4]||'').trim()};
+  }
+
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(drum|drums|tote|totes|pail|pails|case|cases|bag|bags)\b\s*(.*)$/i);
+  if(m){
+    const c=m[2].replace(/s$/i,'').toLowerCase();
+    return {qty:m[1],container:c.charAt(0).toUpperCase()+c.slice(1),item:(m[3]||'').trim()};
+  }
+
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*)?(.*)$/);
+  if(m && m[2].trim()) return {qty:m[1],container:'',item:m[2].trim()};
+
+  return {qty:'',container:'',item:text};
+}
+
+let orders=[],user=null;
+async function show(session){user=session?.user||null;$('loginView').classList.toggle('hidden',!!user);$('appView').classList.toggle('hidden',!user);if(user)await load()}
+async function load(){const{data,error}=await supabase.from('orders').select('*,order_items(*)').order('delivered',{ascending:true}).order('requested_ship_date',{ascending:true}).order('created_at',{ascending:true});if(error){$('refreshText').textContent=error.message;return}orders=(data||[]).map(o=>({...o,order_items:(o.order_items||[]).sort((a,b)=>(a.position||0)-(b.position||0))}));render();$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.'}
+function visible(){const f=$('filter').value,q=$('search').value.trim().toLowerCase();return orders.filter(o=>{const items=(o.order_items||[]).map(i=>`${i.item_text} ${i.lot_numbers||''}`).join(' '),hay=[o.customer_name,o.po_number,o.order_text,items].join(' ').toLowerCase();if(q&&!hay.includes(q))return false;return f==='all'||(f==='active'&&!o.delivered)||(f==='open'&&!o.ready_to_ship&&!o.delivered)||(f==='ready'&&o.ready_to_ship&&!o.delivered)||(f==='po_follow'&&o.po_status==='to_follow'&&!o.delivered)||(f==='delivered'&&o.delivered)})}
+function render(){const data=visible();$('body').innerHTML='';data.forEach(o=>{const tr=document.createElement('tr');tr.className=statusClass(o);const rows=(o.order_items||[]).map(i=>{const p=parseOrderLine(i.item_text);return `<div class="row"><div>${esc(p.qty)}</div><div>${esc(p.container)}</div><div>${esc(p.item)}</div><input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)" ${o.delivered?'disabled':''}></div>`}).join('');tr.innerHTML=`<td>${fmtDate(o.requested_ship_date)}</td><td><strong>${esc(o.customer_name)}</strong></td><td>${poLabel(o)}</td><td class="items"><div class="head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>${rows}</td><td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.delivered?'disabled':''}></td><td class="chk"><input type="checkbox" data-delivered="${o.id}" ${o.delivered?'checked':''}></td><td>${esc(o.updated_by_email||'')}</td><td><div class="actions"><button data-edit="${o.id}">Edit</button><button class="danger" data-delete="${o.id}">Delete</button></div></td>`;$('body').appendChild(tr)});$('empty').classList.toggle('hidden',!!data.length)}
+function syncPo(from){if(from==='follow'&&$('poFollow').checked){$('noPo').checked=false;$('po').value=''}if(from==='no'&&$('noPo').checked){$('poFollow').checked=false;$('po').value=''}if(from==='number'&&$('po').value.trim()){$('poFollow').checked=false;$('noPo').checked=false}}
+$('poFollow').onchange=()=>syncPo('follow');$('noPo').onchange=()=>syncPo('no');$('po').oninput=()=>syncPo('number');
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('loginError').textContent='';const{error}=await supabase.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)$('loginError').textContent=error.message};$('logout').onclick=async e=>{e.preventDefault();await supabase.auth.signOut()};
+$('form').onsubmit=async e=>{e.preventDefault();$('formError').textContent='';const lines=splitItems($('orderText').value);if(!lines.length){$('formError').textContent='Enter at least one item.';return}let poNumber=$('po').value.trim()||null,poStatus=null;if(poNumber)poStatus='provided';else if($('poFollow').checked)poStatus='to_follow';else if($('noPo').checked)poStatus='no_po_required';else{$('formError').textContent='Enter a PO number, select To Follow, or select No PO.';return}
+const id=$('editId').value,payload={customer_name:$('customer').value.trim(),po_number:poNumber,po_status:poStatus,requested_ship_date:$('date').value,order_text:lines.join('\n'),updated_by:user.id,updated_by_email:user.email||null};
+if(id){let{error}=await supabase.from('orders').update(payload).eq('id',id);if(error){$('formError').textContent=error.message;return}const old=orders.find(o=>String(o.id)===String(id))?.order_items||[],rebuilt=lines.map((line,pos)=>({order_id:Number(id),item_text:line,lot_numbers:old[pos]?.lot_numbers||null,position:pos,updated_by:user.id,updated_by_email:user.email||null}));({error}=await supabase.from('order_items').delete().eq('order_id',id));if(error){$('formError').textContent=error.message;return}({error}=await supabase.from('order_items').insert(rebuilt));if(error){$('formError').textContent=error.message;return}}else{payload.created_by=user.id;payload.created_by_email=user.email||null;const{data:o,error}=await supabase.from('orders').insert(payload).select().single();if(error){$('formError').textContent=error.message;return}const{error:itemErr}=await supabase.from('order_items').insert(lines.map((item_text,position)=>({order_id:o.id,item_text,position})));if(itemErr){$('formError').textContent=itemErr.message;return}}resetForm();await load()};
+function resetForm(){$('form').reset();$('editId').value='';$('saveBtn').textContent='Add Order';$('cancelBtn').classList.add('hidden');$('formError').textContent=''}
+$('cancelBtn').onclick=resetForm;$('search').oninput=render;$('filter').onchange=render;$('refreshBtn').onclick=load;
+$('body').addEventListener('change',async e=>{if(e.target.dataset.lot){const{error}=await supabase.from('order_items').update({lot_numbers:e.target.value.trim()||null,updated_by:user.id,updated_by_email:user.email||null}).eq('id',e.target.dataset.lot);if(error)alert(error.message);await load();return}const id=e.target.dataset.ready||e.target.dataset.delivered;if(!id)return;const o=orders.find(x=>String(x.id)===String(id));let patch={updated_by:user.id,updated_by_email:user.email||null};if(e.target.dataset.ready){if(e.target.checked){const missing=(o.order_items||[]).filter(i=>!String(i.lot_numbers||'').trim()).length;if(missing&&!confirm(`${missing} order item${missing===1?'':'s'} are missing lot numbers.\n\nMark this order Ready to Ship anyway?`)){e.target.checked=false;return}}patch.ready_to_ship=e.target.checked}else{patch.delivered=e.target.checked;if(e.target.checked)patch.ready_to_ship=true}const{error}=await supabase.from('orders').update(patch).eq('id',id);if(error)alert(error.message);await load()});
+$('body').addEventListener('click',async e=>{const eb=e.target.closest('[data-edit]'),db=e.target.closest('[data-delete]');if(eb){const o=orders.find(x=>String(x.id)===String(eb.dataset.edit));$('editId').value=o.id;$('customer').value=o.customer_name;$('po').value=o.po_number||'';$('poFollow').checked=o.po_status==='to_follow';$('noPo').checked=o.po_status==='no_po_required';$('date').value=o.requested_ship_date;$('orderText').value=(o.order_items||[]).map(i=>i.item_text).join('\n')||o.order_text||'';$('saveBtn').textContent='Save Changes';$('cancelBtn').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'})}if(db){const o=orders.find(x=>String(x.id)===String(db.dataset.delete));if(confirm(`Delete order for ${o.customer_name}?`)){const{error}=await supabase.from('orders').delete().eq('id',o.id);if(error)alert(error.message);await load()}}});
+$('exportBtn').onclick=()=>{const rows=[['Ship Date','Customer','PO Status','PO Number','Qty','Container','Item','Lot Numbers','Ready','Delivered','Updated By']];visible().forEach(o=>(o.order_items||[]).forEach(i=>{const p=parseOrderLine(i.item_text);rows.push([o.requested_ship_date,o.customer_name,o.po_status||'',o.po_number||'',p.qty,p.container,p.item,i.lot_numbers||'',o.ready_to_ship?'Yes':'No',o.delivered?'Yes':'No',o.updated_by_email||''])}));const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='orders.csv';a.click();URL.revokeObjectURL(url)};
+const{data:{session}}=await supabase.auth.getSession();await show(session);supabase.auth.onAuthStateChange(async(_e,s)=>await show(s));setInterval(async()=>{if(user)await load()},60000);
+</script>
+</body></html>
