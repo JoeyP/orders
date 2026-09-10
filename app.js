@@ -146,22 +146,34 @@ async function loadOrders(){
   return true;
 }
 
+function fieldId(prefix,name){
+  if(!prefix)return name;
+  return prefix+name.charAt(0).toUpperCase()+name.slice(1);
+}
 function setupPo(prefix=''){
-  const po=$(prefix+'po'),f=$(prefix+'poFollow'),n=$(prefix+'noPo');
+  const po=$(fieldId(prefix,'po'));
+  const f=$(fieldId(prefix,'poFollow'));
+  const n=$(fieldId(prefix,'noPo'));
   if(!po||!f||!n)return;
   f.onchange=()=>{if(f.checked){n.checked=false;po.value=''}};
   n.onchange=()=>{if(n.checked){f.checked=false;po.value=''}};
   po.oninput=()=>{if(po.value.trim()){f.checked=false;n.checked=false}};
 }
 function getPo(prefix=''){
-  const po=$(prefix+'po').value.trim()||null;
+  const poEl=$(fieldId(prefix,'po'));
+  const followEl=$(fieldId(prefix,'poFollow'));
+  const noPoEl=$(fieldId(prefix,'noPo'));
+  if(!poEl||!followEl||!noPoEl)return null;
+  const po=poEl.value.trim()||null;
   return po?{po_number:po,po_status:'provided'}
-    :$(prefix+'poFollow').checked?{po_number:null,po_status:'to_follow'}
-    :$(prefix+'noPo').checked?{po_number:null,po_status:'no_po_required'}
+    :followEl.checked?{po_number:null,po_status:'to_follow'}
+    :noPoEl.checked?{po_number:null,po_status:'no_po_required'}
     :null;
 }
 function setupDelivery(prefix=''){
-  const sel=$(prefix+'deliveryMethod'),wrap=$(prefix+'deliveryOtherWrap'),txt=$(prefix+'deliveryOther');
+  const sel=$(fieldId(prefix,'deliveryMethod'));
+  const wrap=$(fieldId(prefix,'deliveryOtherWrap'));
+  const txt=$(fieldId(prefix,'deliveryOther'));
   if(!sel||!wrap)return;
   const sync=()=>{
     const isOther=sel.value==='other';
@@ -172,11 +184,12 @@ function setupDelivery(prefix=''){
   sync();
 }
 function getDelivery(prefix=''){
-  const sel=$(prefix+'deliveryMethod');
+  const sel=$(fieldId(prefix,'deliveryMethod'));
+  const txt=$(fieldId(prefix,'deliveryOther'));
   if(!sel||!sel.value)return null;
   return{
     delivery_method:sel.value,
-    delivery_method_other:sel.value==='other'?($(prefix+'deliveryOther')?.value.trim()||null):null
+    delivery_method_other:sel.value==='other'?(txt?.value.trim()||null):null
   };
 }
 
