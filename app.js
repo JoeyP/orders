@@ -593,7 +593,7 @@ function ensureEditModal(){
       <div id="editError" class="edit-save-status"></div>
       <div class="modal-actions">
         <button type="button" id="cancelEdit">Cancel</button>
-        <button type="submit" class="primary" id="saveEdit">Save Changes</button>
+        <button type="button" class="primary" id="saveEdit">Save Changes</button>
         <button type="button" class="danger-btn" id="deleteEdit">Delete Order</button>
       </div>
     </form>
@@ -658,7 +658,7 @@ function preserveLots(oldItems,newLines){
   return result;
 }
 async function saveEditOrder(e){
-  e.preventDefault();
+  if(e?.preventDefault)e.preventDefault();
 
   const id=$('editId').value;
   const o=orders.find(x=>String(x.id)===String(id));
@@ -853,16 +853,18 @@ document.addEventListener('click',async e=>{
     return;
   }
 
+  const saveButton=e.target.closest('#saveEdit');
+  if(saveButton){
+    e.preventDefault();
+    await saveEditOrder(e);
+    return;
+  }
+
   const deleteButton=e.target.closest('#deleteEdit');
   if(deleteButton){
     e.preventDefault();
     await deleteEditedOrder();
-  }
-});
-
-document.addEventListener('submit',async e=>{
-  if(e.target?.id==='editForm'){
-    await saveEditOrder(e);
+    return;
   }
 });
 
