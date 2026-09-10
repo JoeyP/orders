@@ -711,9 +711,29 @@ async function saveEditOrder(e){
   save.textContent='Saving…';
   $('editError').textContent='';
 
-  const{error}=await supabase.from('orders').update(patch).eq('id',id);
+  const{data:updatedRows,error}=await supabase.from('orders')
+    .update(patch)
+    .eq('id',id)
+    .select('id,delivery_method,delivery_method_other');
+
   if(error){
     $('editError').textContent=error.message;
+    save.disabled=false;
+    save.textContent=originalSaveText;
+    return;
+  }
+
+  if(!updatedRows||updatedRows.length!==1){
+    $('editError').textContent='This order was not updated. Your login may not have permission to edit orders created by another user. Run the V3.2.2 shared-edit Supabase migration.';
+    save.disabled=false;
+    save.textContent=originalSaveText;
+    return;
+  }
+
+  const savedHeader=updatedRows[0];
+  if(savedHeader.delivery_method!==delivery.delivery_method ||
+     (savedHeader.delivery_method_other||null)!==(delivery.delivery_method_other||null)){
+    $('editError').textContent='The order update returned, but the Delivery Method did not save correctly. Please retry.';
     save.disabled=false;
     save.textContent=originalSaveText;
     return;
