@@ -360,8 +360,10 @@ async function trackerLoad(){
       ${page==='desktop'?`<td class="blend-column">${blendCheckboxes(o)}</td>`:''}
       <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
-      <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
-      <td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td>
+      ${page==='desktop'?`
+        <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
+        <td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td>
+      `:''}
       <td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>
       <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
     body.appendChild(tr);
