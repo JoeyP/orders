@@ -138,3 +138,16 @@ label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}input,texta
 @media(max-width:520px){
   .success-modal-actions{grid-template-columns:1fr}
 }
+
+
+/* V3.2.1 edit modal action fix */
+.modal-actions .danger-btn{
+  background:#b91c1c!important;
+  color:#fff!important;
+  border-color:#b91c1c!important;
+  min-width:126px;
+}
+.modal-actions button:disabled{
+  opacity:.65;
+  cursor:not-allowed;
+}

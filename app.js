@@ -600,15 +600,11 @@ function ensureEditModal(){
   </div>`;
 
   document.body.appendChild(wrap);
-  $('closeEdit').onclick=closeEditModal;
-  $('cancelEdit').onclick=closeEditModal;
   wrap.addEventListener('click',e=>{if(e.target===wrap)closeEditModal()});
   setupPo('edit');
   setupDelivery('edit');
-  $('editForm').addEventListener('submit',saveEditOrder);
   $('editPickup').addEventListener('change',()=>{if($('editPickup').value)$('editScheduled').checked=true});
   $('editScheduled').addEventListener('change',()=>{if(!$('editScheduled').checked)$('editPickup').value=''});
-  $('deleteEdit').onclick=deleteEditedOrder;
 }
 function closeEditModal(){
   $('editModal')?.classList.add('hidden');
@@ -710,13 +706,16 @@ async function saveEditOrder(e){
   };
 
   const save=$('saveEdit');
+  const originalSaveText=save.textContent;
   save.disabled=true;
+  save.textContent='Saving…';
   $('editError').textContent='';
 
   const{error}=await supabase.from('orders').update(patch).eq('id',id);
   if(error){
     $('editError').textContent=error.message;
     save.disabled=false;
+    save.textContent=originalSaveText;
     return;
   }
 
@@ -724,6 +723,7 @@ async function saveEditOrder(e){
   if(deleteItemsError){
     $('editError').textContent=deleteItemsError.message;
     save.disabled=false;
+    save.textContent=originalSaveText;
     return;
   }
 
@@ -740,10 +740,12 @@ async function saveEditOrder(e){
   if(itemError){
     $('editError').textContent=itemError.message;
     save.disabled=false;
+    save.textContent=originalSaveText;
     return;
   }
 
   save.disabled=false;
+  save.textContent=originalSaveText;
   closeEditModal();
   await refreshCurrentPage();
 }
@@ -761,6 +763,30 @@ async function deleteEditedOrder(){
   closeEditModal();
   await refreshCurrentPage();
 }
+
+// Stable edit-modal action handling.
+// These listeners live on document so they survive page/table refreshes and modal recreation.
+document.addEventListener('click',async e=>{
+  const closeButton=e.target.closest('#closeEdit,#cancelEdit');
+  if(closeButton){
+    e.preventDefault();
+    closeEditModal();
+    return;
+  }
+
+  const deleteButton=e.target.closest('#deleteEdit');
+  if(deleteButton){
+    e.preventDefault();
+    await deleteEditedOrder();
+  }
+});
+
+document.addEventListener('submit',async e=>{
+  if(e.target?.id==='editForm'){
+    await saveEditOrder(e);
+  }
+});
+
 function wireOrderActions(){
   document.querySelectorAll('[data-edit-order]').forEach(b=>{
     b.onclick=()=>openEditOrder(b.dataset.editOrder);
