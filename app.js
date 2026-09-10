@@ -25,18 +25,29 @@ function fmtDate(s){
 function localDateString(d){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function statusClass(o){
-  if(o.shipped)return'gray';
+function trackerStatusClass(o){
+  // Warehouse view: Ready orders are removed entirely, so only operational
+  // exceptions need color. Keep Back Ordered charcoal and overdue/due-today red.
   if(o.back_ordered)return'charcoal';
   if(!o.requested_delivery_date)return'';
   const t=localDateString(new Date());
-  const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const tm=localDateString(tomorrow);
   if(o.requested_delivery_date<=t&&!o.ready_to_ship)return'red';
-  if(o.requested_delivery_date===t&&o.ready_to_ship)return'yellow';
-  if(o.requested_delivery_date===tm&&!o.ready_to_ship)return'orange';
+  return'';
+}
+function mobileStatusClass(o){
+  // Mobile Orders: keep shipped gray, back ordered charcoal, red overdue/due today,
+  // and green Ready. Orange/yellow are intentionally removed.
+  if(o.shipped)return'gray';
+  if(o.back_ordered)return'charcoal';
+  if(!o.requested_delivery_date)return o.ready_to_ship?'green':'';
+  const t=localDateString(new Date());
+  if(o.requested_delivery_date<=t&&!o.ready_to_ship)return'red';
   if(o.ready_to_ship)return'green';
   return'';
+}
+function statusClass(o){
+  // Backward-compatible helper for any remaining generic use.
+  return mobileStatusClass(o);
 }
 function deliveryStatusClass(o){
   if(o.shipped)return'gray';
@@ -201,6 +212,9 @@ function filtered(){
   const dateTo=$('dateTo')?.value||'';
 
   return orders.filter(o=>{
+    // Order Tracker is a warehouse work queue. Once Ready, the order leaves it.
+    if(page==='tracker'&&o.ready_to_ship)return false;
+
     const hay=[
       o.customer_name,o.po_number,o.po_status,o.order_text,
       deliveryLabel(o),o.requested_delivery_date,o.scheduled_pickup_date,
@@ -332,7 +346,8 @@ async function trackerLoad(){
 
   filtered().forEach(o=>{
     const tr=document.createElement('tr');
-    tr.className=statusClass(o);
+    // Admin Orders is intentionally uncolored. Tracker only keeps red/charcoal.
+    tr.className=page==='desktop'?'':trackerStatusClass(o);
     tr.innerHTML=`
       <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
       <td><strong>${esc(o.customer_name)}</strong></td>
@@ -1038,7 +1053,7 @@ async function mobileLoad(){
   if($('directOrderNote'))$('directOrderNote').classList.toggle('hidden',!directId);
 
   $('cards').innerHTML=list.map(o=>`
-    <div class="order-card ${statusClass(o)}">
+    <div class="order-card ${mobileStatusClass(o)}">
       <div class="card-top">
         <div>
           <div class="customer">${esc(o.customer_name)}</div>

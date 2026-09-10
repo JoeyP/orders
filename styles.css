@@ -460,3 +460,11 @@ body[data-page="deliveries"] .delivery-summary>div:first-child{
   margin:0;
   padding:0;
 }
+
+
+/* V3.4.2 page-specific order coloring */
+body[data-page="desktop"] #body tr,
+body[data-page="desktop"] #body tr td{
+  background:#fff!important;
+  color:var(--text)!important;
+}
