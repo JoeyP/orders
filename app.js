@@ -590,12 +590,12 @@ function ensureEditModal(){
       <label>Scheduled Pickup Date <span class="small">(optional)</span></label>
       <input id="editPickup" type="date">
 
+      <div id="editError" class="edit-save-status"></div>
       <div class="modal-actions">
         <button type="button" id="cancelEdit">Cancel</button>
         <button type="submit" class="primary" id="saveEdit">Save Changes</button>
         <button type="button" class="danger-btn" id="deleteEdit">Delete Order</button>
       </div>
-      <div id="editError" class="error"></div>
     </form>
   </div>`;
 
@@ -641,6 +641,7 @@ function openEditOrder(id){
   $('editPickup').value=o.scheduled_pickup_date||'';
 
   renderEditLots(o);
+  $('editError').className='edit-save-status';
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
 }
@@ -658,35 +659,56 @@ function preserveLots(oldItems,newLines){
 }
 async function saveEditOrder(e){
   e.preventDefault();
+
   const id=$('editId').value;
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o)return;
 
+  const errorBox=$('editError');
+  const save=$('saveEdit');
+  const originalSaveText=save.textContent;
+
   const po=getPo('edit');
   if(!po){
-    $('editError').textContent='Enter a PO number, select PO to Follow, or select No PO Required.';
+    errorBox.textContent='Enter a PO number, select PO to Follow, or select No PO Required.';
+    errorBox.scrollIntoView({block:'nearest'});
     return;
   }
+
   const delivery=getDelivery('edit');
   if(!delivery){
-    $('editError').textContent='Select a Delivery Method.';
+    errorBox.textContent='Select a Delivery Method.';
+    errorBox.scrollIntoView({block:'nearest'});
     return;
   }
 
   const lines=splitItems($('editOrderText').value);
   if(!lines.length){
-    $('editError').textContent='Enter at least one order item.';
+    errorBox.textContent='Enter at least one order item.';
+    errorBox.scrollIntoView({block:'nearest'});
     return;
   }
 
-  const oldItems=(o.order_items||[]).map((i,idx)=>({
-    ...i,
-    lot_numbers:document.querySelector(`[data-edit-lot-index="${idx}"]`)?.value.trim()||i.lot_numbers||null
-  }));
-  const lots=preserveLots(oldItems,lines);
+  const oldItems=(o.order_items||[]).slice().sort((a,b)=>(a.position||0)-(b.position||0));
+  const oldLines=oldItems.map(i=>String(i.item_text||'').trim());
+  const linesChanged=
+    oldLines.length!==lines.length ||
+    oldLines.some((line,idx)=>line!==lines[idx]);
+
+  // Current lot values from the popup, by existing item position.
+  const currentLots=oldItems.map((i,idx)=>{
+    const input=document.querySelector(`[data-edit-lot-index="${idx}"]`);
+    return input ? (input.value.trim()||null) : (i.lot_numbers||null);
+  });
+
+  // If the line structure changed, carry old lots forward where possible.
+  const rebuiltLots=linesChanged ? preserveLots(
+    oldItems.map((i,idx)=>({...i,lot_numbers:currentLots[idx]})),
+    lines
+  ) : currentLots;
 
   if($('editReady').checked){
-    const missing=lots.filter(x=>!String(x||'').trim()).length;
+    const missing=rebuiltLots.filter(x=>!String(x||'').trim()).length;
     if(missing&&!confirm(`${missing} order item(s) are missing lot numbers. Mark this order Ready anyway?`))return;
   }
 
@@ -705,69 +727,106 @@ async function saveEditOrder(e){
     updated_by_email:user.email||null
   };
 
-  const save=$('saveEdit');
-  const originalSaveText=save.textContent;
   save.disabled=true;
   save.textContent='Saving…';
-  $('editError').textContent='';
+  errorBox.className='edit-save-status';
+  errorBox.textContent='Saving order changes…';
+  errorBox.scrollIntoView({block:'nearest'});
 
-  const{data:updatedRows,error}=await supabase.from('orders')
-    .update(patch)
-    .eq('id',id)
-    .select('id,delivery_method,delivery_method_other');
+  try{
+    // STEP 1 — update only the order header.
+    const{data:updated,error:updateError}=await supabase
+      .from('orders')
+      .update(patch)
+      .eq('id',id)
+      .select('*')
+      .single();
 
-  if(error){
-    $('editError').textContent=error.message;
+    if(updateError)throw new Error(`Order update failed: ${updateError.message}`);
+
+    if(!updated)throw new Error('Order update returned no saved row.');
+
+    if(updated.delivery_method!==delivery.delivery_method){
+      throw new Error(`Delivery Method verification failed. Expected "${delivery.delivery_method}" but Supabase returned "${updated.delivery_method||'blank'}".`);
+    }
+
+    if((updated.delivery_method_other||null)!==(delivery.delivery_method_other||null)){
+      throw new Error('Other Delivery Method verification failed.');
+    }
+
+    // STEP 2 — only rebuild order_items if item lines actually changed.
+    if(linesChanged){
+      const{error:deleteError}=await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id',id);
+
+      if(deleteError)throw new Error(`Order items could not be replaced: ${deleteError.message}`);
+
+      const replacementRows=lines.map((item_text,position)=>({
+        order_id:Number(id),
+        item_text,
+        position,
+        lot_numbers:rebuiltLots[position]||null,
+        updated_by:user.id,
+        updated_by_email:user.email||null
+      }));
+
+      const{error:insertError}=await supabase
+        .from('order_items')
+        .insert(replacementRows);
+
+      if(insertError)throw new Error(`Order items could not be saved: ${insertError.message}`);
+    }else{
+      // STEP 2B — item text is unchanged, so update only lot numbers that changed.
+      for(let idx=0;idx<oldItems.length;idx++){
+        const oldLot=oldItems[idx].lot_numbers||null;
+        const newLot=currentLots[idx]||null;
+        if(oldLot===newLot)continue;
+
+        const{error:lotError}=await supabase
+          .from('order_items')
+          .update({
+            lot_numbers:newLot,
+            updated_by:user.id,
+            updated_by_email:user.email||null
+          })
+          .eq('id',oldItems[idx].id);
+
+        if(lotError)throw new Error(`Lot number update failed: ${lotError.message}`);
+      }
+    }
+
+    // STEP 3 — re-read the saved order from Supabase and verify it independently.
+    const{data:verified,error:verifyError}=await supabase
+      .from('orders')
+      .select('id,customer_name,po_number,po_status,requested_delivery_date,delivery_method,delivery_method_other,back_ordered,ready_to_ship,scheduled,scheduled_pickup_date,shipped')
+      .eq('id',id)
+      .single();
+
+    if(verifyError)throw new Error(`Save verification failed: ${verifyError.message}`);
+    if(!verified)throw new Error('Save verification returned no order.');
+
+    if(verified.delivery_method!==delivery.delivery_method){
+      throw new Error(`Save verification failed: Delivery Method is still "${deliveryLabel(verified)}".`);
+    }
+
+    errorBox.className='edit-save-status success';
+    errorBox.textContent='Saved successfully ✓';
+
+    // Give the user visible confirmation, then close and reload.
+    await new Promise(resolve=>setTimeout(resolve,450));
+    closeEditModal();
+    await refreshCurrentPage();
+
+  }catch(err){
+    errorBox.className='edit-save-status error';
+    errorBox.textContent=err?.message||'The order could not be saved.';
+    errorBox.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }finally{
     save.disabled=false;
     save.textContent=originalSaveText;
-    return;
   }
-
-  if(!updatedRows||updatedRows.length!==1){
-    $('editError').textContent='This order was not updated. Your login may not have permission to edit orders created by another user. Run the V3.2.2 shared-edit Supabase migration.';
-    save.disabled=false;
-    save.textContent=originalSaveText;
-    return;
-  }
-
-  const savedHeader=updatedRows[0];
-  if(savedHeader.delivery_method!==delivery.delivery_method ||
-     (savedHeader.delivery_method_other||null)!==(delivery.delivery_method_other||null)){
-    $('editError').textContent='The order update returned, but the Delivery Method did not save correctly. Please retry.';
-    save.disabled=false;
-    save.textContent=originalSaveText;
-    return;
-  }
-
-  const{error:deleteItemsError}=await supabase.from('order_items').delete().eq('order_id',id);
-  if(deleteItemsError){
-    $('editError').textContent=deleteItemsError.message;
-    save.disabled=false;
-    save.textContent=originalSaveText;
-    return;
-  }
-
-  const rows=lines.map((item_text,position)=>({
-    order_id:Number(id),
-    item_text,
-    position,
-    lot_numbers:lots[position]||null,
-    updated_by:user.id,
-    updated_by_email:user.email||null
-  }));
-
-  const{error:itemError}=await supabase.from('order_items').insert(rows);
-  if(itemError){
-    $('editError').textContent=itemError.message;
-    save.disabled=false;
-    save.textContent=originalSaveText;
-    return;
-  }
-
-  save.disabled=false;
-  save.textContent=originalSaveText;
-  closeEditModal();
-  await refreshCurrentPage();
 }
 async function deleteEditedOrder(){
   const id=$('editId')?.value;
