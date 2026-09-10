@@ -225,22 +225,51 @@ function filtered(){
       ||(f==='shipped'&&o.shipped);
   });
 }
-function itemRows(o,editable=true){
+function itemRows(o,editable=true,showBlend=false){
   return (o.order_items||[]).map(i=>{
     const p=parseOrderLine(i.item_text);
-    return `<div class="item-row">
+    return `<div class="item-row ${showBlend?'admin-item-row':''}">
       <div>${esc(p.qty)}</div>
       <div>${esc(p.container)}</div>
       <div>${esc(p.item)}</div>
       ${editable
         ?`<input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot(s)" ${o.shipped?'disabled':''}>`
         :`<div>${esc(i.lot_numbers||'')}</div>`}
+      ${showBlend
+        ?`<label class="blend-toggle" title="Send this item to Blending">
+            <input type="checkbox" data-blend-item="${i.id}" ${i.requires_blending?'checked':''} ${o.shipped?'disabled':''}>
+            <span>Blend</span>
+          </label>`
+        :''}
     </div>`;
   }).join('');
 }
 
 async function changeTracker(e){
   const t=e.target;
+
+  if(t.dataset.blendItem){
+    const id=t.dataset.blendItem;
+    const checked=t.checked;
+    t.disabled=true;
+
+    const{error}=await supabase.from('order_items').update({
+      requires_blending:checked,
+      updated_by:user.id,
+      updated_by_email:user.email||null
+    }).eq('id',id);
+
+    if(error){
+      t.checked=!checked;
+      t.disabled=false;
+      alert(error.message);
+      return;
+    }
+
+    await trackerLoad();
+    return;
+  }
+
   if(t.dataset.lot){
     const{error}=await supabase.from('order_items').update({
       lot_numbers:t.value.trim()||null,
@@ -303,9 +332,12 @@ async function trackerLoad(){
       <td><strong>${esc(o.customer_name)}</strong></td>
       <td>${poLabel(o)}</td>
       <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
-      <td class="items">
-        <div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>
-        ${itemRows(o,true)}
+      <td class="items ${page==='desktop'?'admin-items':''}">
+        <div class="item-head ${page==='desktop'?'admin-item-row':''}">
+          <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div>
+          ${page==='desktop'?'<div>Blending</div>':''}
+        </div>
+        ${itemRows(o,true,page==='desktop')}
       </td>
       <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
@@ -414,9 +446,7 @@ async function deliveriesLoad(){
 }
 async function forecastLoad(){
   const{data,error}=await supabase.from('orders')
-    .select('id,ready_to_ship,scheduled,shipped,back_ordered,order_items(*)')
-    .eq('ready_to_ship',false)
-    .eq('scheduled',false)
+    .select('id,customer_name,po_number,po_status,requested_delivery_date,shipped,order_items(*)')
     .eq('shipped',false);
 
   if(error){
@@ -424,50 +454,99 @@ async function forecastLoad(){
     return;
   }
 
-  const groups=new Map(),os=data||[];
-  let itemCount=0;
+  const os=data||[];
+  const groups=new Map();
+  let selectedItems=0;
+  const activeOrderIds=new Set();
 
-  os.forEach(o=>(o.order_items||[]).forEach(i=>{
-    itemCount++;
-    const p=parseOrderLine(i.item_text);
-    const name=(p.item||i.item_text).trim();
-    const key=name.toLowerCase().replace(/\s+/g,' ');
-    const qty=Number(p.qty)||0;
-    const cont=p.container||'Unparsed';
+  os.forEach(o=>{
+    (o.order_items||[])
+      .filter(i=>i.requires_blending===true)
+      .forEach(i=>{
+        selectedItems++;
+        activeOrderIds.add(o.id);
 
-    if(!groups.has(key))groups.set(key,{name,containers:new Map(),gallons:0});
-    const g=groups.get(key);
-    g.containers.set(cont,(g.containers.get(cont)||0)+qty);
-    const gal=containerGallons(cont);
-    if(gal!==null)g.gallons+=qty*gal;
-  }));
+        const p=parseOrderLine(i.item_text);
+        const name=(p.item||i.item_text||'').trim();
+        const key=name.toLowerCase().replace(/\s+/g,' ');
+        const qty=Number(p.qty)||0;
+        const cont=p.container||'Unparsed';
+        const gallonsEach=containerGallons(cont);
+        const gallons=gallonsEach!==null?qty*gallonsEach:0;
 
-  if($('orderCount'))$('orderCount').textContent=os.length;
-  if($('itemCount'))$('itemCount').textContent=itemCount;
+        if(!groups.has(key)){
+          groups.set(key,{
+            name,
+            containers:new Map(),
+            gallons:0,
+            demands:[]
+          });
+        }
+
+        const g=groups.get(key);
+        g.containers.set(cont,(g.containers.get(cont)||0)+qty);
+        g.gallons+=gallons;
+        g.demands.push({
+          orderId:o.id,
+          customer:o.customer_name||'',
+          po:poLabel(o),
+          requestedDate:o.requested_delivery_date,
+          qty:p.qty||'',
+          container:cont,
+          gallons,
+          lot:i.lot_numbers||''
+        });
+      });
+  });
+
+  if($('orderCount'))$('orderCount').textContent=activeOrderIds.size;
+  if($('itemCount'))$('itemCount').textContent=selectedItems;
 
   const list=[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name));
 
   if($('totals')){
     $('totals').innerHTML=list.length
-      ?list.map(g=>`<tr><td>${esc(g.name)}</td><td><strong>${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td></tr>`).join('')
-      :'<tr><td colspan="2">No pending blending demand.</td></tr>';
+      ?list.map(g=>`<tr>
+          <td><strong>${esc(g.name)}</strong></td>
+          <td><strong>${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td>
+        </tr>`).join('')
+      :'<tr><td colspan="2">No items are currently selected for blending.</td></tr>';
   }
 
   if($('products')){
     $('products').innerHTML=list.length
-      ?list.map(g=>`<div class="product">
-          <h2>${esc(g.name)}</h2>
-          <div class="breakdown">
-            ${[...g.containers.entries()].map(([c,q])=>`<div>${esc(c)}</div><div><strong>${q}</strong> container${q===1?'':'s'}</div>`).join('')}
+      ?list.map(g=>`<div class="product blending-product">
+          <div class="blending-product-head">
+            <div>
+              <h2>${esc(g.name)}</h2>
+              <div class="small">${g.demands.length} selected line item${g.demands.length===1?'':'s'}</div>
+            </div>
+            <div class="blending-gallon-total">${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})} gal</div>
           </div>
-          <div class="total">Total gallons: ${g.gallons.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+
+          <div class="breakdown blending-container-breakdown">
+            ${[...g.containers.entries()].map(([c,q])=>`
+              <div>${esc(c)}</div>
+              <div><strong>${q}</strong> container${q===1?'':'s'}</div>
+            `).join('')}
+          </div>
+
+          <div class="blending-demand-list">
+            ${g.demands.map(d=>`<div class="blending-demand-row">
+              <div>
+                <strong>${esc(d.customer)}</strong>
+                <div class="small">${d.po} · Order #${d.orderId}${d.requestedDate?` · Due ${fmtDate(d.requestedDate)}`:''}</div>
+              </div>
+              <div class="blending-demand-qty">${esc(d.qty)} × ${esc(d.container)}</div>
+              <div class="blending-demand-lot">Lot: <strong>${esc(d.lot||'—')}</strong></div>
+            </div>`).join('')}
+          </div>
         </div>`).join('')
-      :'<div class="panel">No pending blending demand.</div>';
+      :'<div class="panel">No items are currently selected for blending. Check Blend on individual line items from Admin Orders.</div>';
   }
 
   if($('refreshText'))$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.';
 }
-
 async function newOrderSubmit(e){
   e.preventDefault();
   if(newOrderSubmitting)return;
@@ -528,7 +607,12 @@ async function newOrderSubmit(e){
 
     const{error:itemError}=await supabase.from('order_items').insert(
       lines.map((item_text,position)=>({
-        order_id:o.id,item_text,position,updated_by:user.id,updated_by_email:user.email||null
+        order_id:o.id,
+        item_text,
+        position,
+        requires_blending:false,
+        updated_by:user.id,
+        updated_by_email:user.email||null
       }))
     );
     if(itemError){
@@ -691,17 +775,25 @@ function openEditOrder(id){
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
 }
-function preserveLots(oldItems,newLines){
+function preserveItemMetadata(oldItems,newLines){
   const used=new Set(),result=[];
   newLines.forEach((line,pos)=>{
     let idx=oldItems.findIndex((i,j)=>!used.has(j)&&String(i.item_text||'').trim()===line.trim());
     if(idx<0&&oldItems[pos]&&!used.has(pos))idx=pos;
     if(idx>=0){
       used.add(idx);
-      result.push(oldItems[idx].lot_numbers||null);
-    }else result.push(null);
+      result.push({
+        lot_numbers:oldItems[idx].lot_numbers||null,
+        requires_blending:!!oldItems[idx].requires_blending
+      });
+    }else{
+      result.push({lot_numbers:null,requires_blending:false});
+    }
   });
   return result;
+}
+function preserveLots(oldItems,newLines){
+  return preserveItemMetadata(oldItems,newLines).map(x=>x.lot_numbers);
 }
 async function saveEditOrder(e){
   if(e?.preventDefault)e.preventDefault();
@@ -747,11 +839,19 @@ async function saveEditOrder(e){
     return input ? (input.value.trim()||null) : (i.lot_numbers||null);
   });
 
-  // If the line structure changed, carry old lots forward where possible.
-  const rebuiltLots=linesChanged ? preserveLots(
-    oldItems.map((i,idx)=>({...i,lot_numbers:currentLots[idx]})),
-    lines
-  ) : currentLots;
+  // If the line structure changed, carry old lot + Blend state forward where possible.
+  const currentItems=oldItems.map((i,idx)=>({
+    ...i,
+    lot_numbers:currentLots[idx],
+    requires_blending:!!i.requires_blending
+  }));
+  const rebuiltMetadata=linesChanged
+    ?preserveItemMetadata(currentItems,lines)
+    :currentItems.map(i=>({
+        lot_numbers:i.lot_numbers||null,
+        requires_blending:!!i.requires_blending
+      }));
+  const rebuiltLots=rebuiltMetadata.map(x=>x.lot_numbers);
 
   if($('editReady').checked){
     const missing=rebuiltLots.filter(x=>!String(x||'').trim()).length;
@@ -813,7 +913,8 @@ async function saveEditOrder(e){
         order_id:Number(id),
         item_text,
         position,
-        lot_numbers:rebuiltLots[position]||null,
+        lot_numbers:rebuiltMetadata[position]?.lot_numbers||null,
+        requires_blending:!!rebuiltMetadata[position]?.requires_blending,
         updated_by:user.id,
         updated_by_email:user.email||null
       }));
