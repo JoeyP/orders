@@ -74,8 +74,9 @@ function parseOrderLine(raw){
 
   let m;
 
-  // 1 - 55g Product, 1x55 gal Product, 1 (55g) Product
-  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(g|gal|gallon|gallons|lb|lbs|pound|pounds|oz|ounce|ounces|kg|l|liter|liters|litre|litres)\s*\)?\s*(.*)$/i);
+  // 1 - 55g Product, 1x55 gal Product, 1 (55 gallon) Product.
+  // Longest unit names come first so "gal" is never partially matched as "g".
+  m=text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(gallons|gallon|gal|g|pounds|pound|lbs|lb|ounces|ounce|oz|kg|liters|liter|litres|litre|l)\b\s*\)?\s*(.*)$/i);
   if(m){
     const u=normalizeUnit(m[3]);
     return{qty:m[1],container:`${m[2]} ${u}`,item:(m[4]||'').trim()};
