@@ -339,10 +339,14 @@ async function deliveriesLoad(){
   });
 
   const body=$('deliveryBody');
-  if(!body)return;
+  const cards=$('deliveryCards');
+  if(!body||!cards)return;
+
   body.innerHTML='';
+  cards.innerHTML='';
 
   list.forEach(o=>{
+    // Desktop/table view
     const tr=document.createElement('tr');
     tr.className=deliveryStatusClass(o);
     tr.innerHTML=`
@@ -354,8 +358,42 @@ async function deliveriesLoad(){
         ${itemRows(o,false)}
       </td>
       <td class="driver-status"><strong>${o.ready_to_ship?'READY':'Not Ready'}</strong></td>
-      <td class="chk"><input type="checkbox" data-delivery-shipped="${o.id}" ${o.shipped?'checked':''}></td>`;
+      <td class="chk"><input type="checkbox" data-delivery-shipped="${o.id}" ${o.shipped?'checked':''} aria-label="Mark ${esc(o.customer_name)} delivered"></td>`;
     body.appendChild(tr);
+
+    // Mobile/driver card view
+    const card=document.createElement('article');
+    card.className=`delivery-card ${deliveryStatusClass(o)}`;
+    card.innerHTML=`
+      <div class="delivery-card-head">
+        <div>
+          <div class="delivery-card-date">${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'No requested date'}</div>
+          <div class="delivery-card-customer">${esc(o.customer_name)}</div>
+          <div class="delivery-card-po">${poLabel(o)}</div>
+        </div>
+        <div class="delivery-status-badge ${o.shipped?'is-shipped':o.ready_to_ship?'is-ready':'is-waiting'}">
+          ${o.shipped?'DELIVERED':o.ready_to_ship?'READY':'NOT READY'}
+        </div>
+      </div>
+
+      <div class="delivery-mobile-items">
+        ${(o.order_items||[]).map(i=>{
+          const p=parseOrderLine(i.item_text);
+          return `<div class="delivery-mobile-item">
+            <div class="delivery-mobile-product">${esc(p.item||i.item_text)}</div>
+            <div class="delivery-mobile-meta">
+              <span><strong>${esc(p.qty||'—')}</strong> × ${esc(p.container||'')}</span>
+              <span>Lot: <strong>${esc(i.lot_numbers||'—')}</strong></span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <label class="delivery-complete-action">
+        <input type="checkbox" data-delivery-shipped="${o.id}" ${o.shipped?'checked':''}>
+        <span>${o.shipped?'Delivered / Shipped':'Mark Delivered / Shipped'}</span>
+      </label>`;
+    cards.appendChild(card);
   });
 
   document.querySelectorAll('[data-delivery-shipped]').forEach(cb=>{
@@ -367,19 +405,30 @@ async function deliveriesLoad(){
         updated_by_email:user.email||null
       };
       if(cb.checked)patch.ready_to_ship=true;
+
+      // Disable every desktop/mobile control for this same order while saving.
+      const matching=[...document.querySelectorAll(`[data-delivery-shipped="${CSS.escape(String(id))}"]`)];
+      matching.forEach(x=>x.disabled=true);
+
       const{error}=await supabase.from('orders').update(patch).eq('id',id);
       if(error){
         alert(error.message);
-        cb.checked=!cb.checked;
+        matching.forEach(x=>{
+          x.checked=!cb.checked;
+          x.disabled=false;
+        });
         return;
       }
       await deliveriesLoad();
     };
   });
 
+  if(!list.length){
+    cards.innerHTML='<div class="delivery-empty">No deliveries match this view.</div>';
+  }
+
   if($('deliveryCount'))$('deliveryCount').textContent=list.length;
 }
-
 async function forecastLoad(){
   const{data,error}=await supabase.from('orders')
     .select('id,ready_to_ship,scheduled,shipped,back_ordered,order_items(*)')
