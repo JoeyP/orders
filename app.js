@@ -39,7 +39,7 @@ function deliveryUrgencyClass(o,{showReadyGreen=false}={}){
   return'';
 }
 function trackerStatusClass(o){return deliveryUrgencyClass(o);}
-function adminStatusClass(o){return deliveryUrgencyClass(o);}
+function adminStatusClass(o){return deliveryUrgencyClass(o,{showReadyGreen:true});}
 function mobileStatusClass(o){return deliveryUrgencyClass(o,{showReadyGreen:true});}
 function statusClass(o){
   // Backward-compatible helper for any remaining generic use.
@@ -698,6 +698,7 @@ function showNewOrderSuccess(o){
           <a id="viewNewOrder" class="primary success-modal-button" href="#">View Order</a>
           <button id="addAnotherOrder" type="button" class="success-modal-button">Add Another Order</button>
           <a id="newOrderHome" class="success-modal-button" href="index.html">Home</a>
+          <a id="viewAllOrders" class="success-modal-button" href="mobile.html">View All Orders</a>
         </div>
       </div>`;
     document.body.appendChild(modal);

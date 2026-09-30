@@ -507,3 +507,57 @@ body[data-page="desktop"] #body tr.charcoal td{background:var(--charcoal)!import
     min-height:44px;
   }
 }
+
+/* V3.4.9 Admin Blend row alignment */
+body[data-page="desktop"] .blend-head-spacer{
+  height:34px!important;
+  min-height:34px!important;
+  border-bottom:1px solid rgba(0,0,0,.12);
+}
+body[data-page="desktop"] .blend-line-check{
+  height:53px!important;
+  min-height:53px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-sizing:border-box;
+  border-bottom:1px dashed rgba(0,0,0,.15);
+}
+body[data-page="desktop"] .blend-line-check input{
+  width:21px!important;
+  height:21px!important;
+  margin:0!important;
+}
+
+/* V3.4.9 Success popup: balanced 2x2 action grid */
+.success-modal-actions{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:10px!important;
+  width:100%!important;
+}
+.success-modal-actions .success-modal-button{
+  width:100%!important;
+  min-height:48px!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  padding:10px 12px!important;
+  border-radius:10px!important;
+  text-align:center!important;
+  text-decoration:none!important;
+  font-weight:800!important;
+  cursor:pointer;
+}
+@media(max-width:480px){
+  .success-modal-actions{
+    grid-template-columns:1fr 1fr!important;
+  }
+}
+
+/* Ready is green on Admin too */
+body[data-page="desktop"] #body tr.green td{
+  background:var(--green)!important;
+}
