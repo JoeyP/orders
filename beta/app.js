@@ -255,6 +255,35 @@ function itemRows(o,editable=true,includeBlend=false){
   }).join('');
 }
 
+function adminOrderDetails(o){
+  const items=(o.order_items||[]).map(i=>{
+    const p=parseOrderLine(i.item_text);
+    return `<div class="admin-detail-product-row">
+      <div>${esc(p.qty)}</div>
+      <div>${esc(p.container)}</div>
+      <div>${esc(p.item)}</div>
+      <div><input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot(s)" ${o.shipped?'disabled':''}></div>
+      <div class="admin-center"><input type="checkbox" data-blend-item="${i.id}" ${i.requires_blending?'checked':''} ${o.shipped?'disabled':''} aria-label="Blend ${esc(p.item||i.item_text)}"></div>
+    </div>`;
+  }).join('');
+  return `<div class="admin-detail-grid">
+    <div class="admin-detail-head">
+      <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div><div>Blend</div>
+      <div>Back Ordered</div><div>Ready</div><div>Scheduled</div><div>Pickup Date</div><div>Shipped</div>
+    </div>
+    <div class="admin-detail-body">
+      <div class="admin-detail-products">${items}</div>
+      <div class="admin-order-controls">
+        <div class="admin-center"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></div>
+        <div class="admin-center"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></div>
+        <div class="admin-center"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></div>
+        <div><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></div>
+        <div class="admin-center"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 async function changeTracker(e){
   const t=e.target;
 
@@ -337,26 +366,26 @@ async function trackerLoad(){
   filtered().forEach(o=>{
     const tr=document.createElement('tr');
     tr.className=page==='desktop'?adminStatusClass(o):trackerStatusClass(o);
-    tr.innerHTML=`
-      <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
-      <td><strong>${esc(o.customer_name)}</strong></td>
-      <td>${poLabel(o)}</td>
-      <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
-      <td class="items${page==='desktop'?' admin-items':''}">
-        <div class="item-head${page==='desktop'?' admin-item-head':''}">
-          <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div>
-          ${page==='desktop'?'<div class="inline-blend-head">Blend</div>':''}
-        </div>
-        ${itemRows(o,true,page==='desktop')}
-      </td>
-      <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
-      <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
-      ${page==='desktop'?`
-        <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
-        <td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td>
-      `:''}
-      <td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>
-      <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
+    if(page==='desktop'){
+      tr.innerHTML=`
+        <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
+        <td><strong>${esc(o.customer_name)}</strong></td>
+        <td>${poLabel(o)}</td>
+        <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
+        <td class="admin-order-details-cell">${adminOrderDetails(o)}</td>
+        <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
+    }else{
+      tr.innerHTML=`
+        <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
+        <td><strong>${esc(o.customer_name)}</strong></td>
+        <td>${poLabel(o)}</td>
+        <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
+        <td class="items"><div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>${itemRows(o,true,false)}</td>
+        <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
+        <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
+        <td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>
+        <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
+    }
     body.appendChild(tr);
   });
   wireOrderActions();
@@ -528,7 +557,7 @@ async function forecastLoad(){
 
   if($('products')){
     $('products').innerHTML=list.length
-      ?list.map(g=>`<div class="product blending-product">
+      ?list.map((g,groupIndex)=>`<div class="product blending-product">
           <div class="blending-product-head">
             <div>
               <h2>${esc(g.name)}</h2>
@@ -543,6 +572,12 @@ async function forecastLoad(){
               <div><strong>${q}</strong> container${q===1?'':'s'}</div>
             `).join('')}
           </div>
+
+          <div class="blend-lot-workflow">
+            <label><span>Blend Lot Number</span><input type="text" data-group-lot="${groupIndex}" placeholder="Enter lot number"></label>
+            <button type="button" class="primary blend-group-complete" data-group-complete="${groupIndex}">Apply Lot &amp; Complete Blend</button>
+          </div>
+          <div class="small blend-lot-note">Applies only to the ${esc(g.name)} line items shown below.</div>
 
           <div class="blending-demand-list">
             ${g.demands.map(d=>`<div class="blending-demand-row">
@@ -561,6 +596,32 @@ async function forecastLoad(){
         </div>`).join('')
       :'<div class="panel">No items are currently selected for blending. Check Blend on individual line items from Admin Orders.</div>';
   }
+
+  document.querySelectorAll('[data-group-complete]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const groupIndex=Number(btn.dataset.groupComplete);
+      const g=list[groupIndex];
+      const input=document.querySelector(`[data-group-lot="${groupIndex}"]`);
+      const lot=String(input?.value||'').trim();
+      if(!g||!lot){alert('Enter a Blend Lot Number first.');input?.focus();return;}
+
+      const conflicts=g.demands.filter(d=>String(d.lot||'').trim()&&String(d.lot||'').trim()!==lot);
+      if(conflicts.length&&!confirm(`${conflicts.length} line item(s) already have a different lot number. Replace those lot numbers with "${lot}"?`))return;
+      if(!confirm(`Apply lot "${lot}" to all ${g.demands.length} ${g.name} line item(s) shown here and mark this blend complete?`))return;
+
+      btn.disabled=true;
+      const ids=g.demands.map(d=>d.itemId);
+      const{error}=await supabase.from('order_items').update({
+        lot_numbers:lot,
+        requires_blending:false,
+        updated_by:user.id,
+        updated_by_email:user.email||null
+      }).in('id',ids);
+
+      if(error){btn.disabled=false;alert(error.message);return;}
+      await forecastLoad();
+    });
+  });
 
   document.querySelectorAll('[data-blend-complete]').forEach(cb=>{
     cb.addEventListener('change',async()=>{
