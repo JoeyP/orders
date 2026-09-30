@@ -611,3 +611,20 @@ body[data-page="desktop"] .blend-line-check{
   color:#fff!important;
   border-color:#1d4ed8!important;
 }
+
+/* V3.5.2: Admin product data + Blend share one physical grid row */
+body[data-page="desktop"] td.admin-items{min-width:570px}
+body[data-page="desktop"] .admin-item-head,
+body[data-page="desktop"] .admin-item-row{
+  grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px) 62px!important;
+}
+body[data-page="desktop"] .inline-blend-head{text-align:center}
+body[data-page="desktop"] .inline-blend{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  align-self:stretch;
+}
+body[data-page="desktop"] .inline-blend input{
+  width:21px!important;height:21px!important;margin:0!important;padding:0!important;
+}

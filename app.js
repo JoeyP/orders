@@ -235,33 +235,24 @@ function filtered(){
       ||(f==='shipped'&&o.shipped);
   });
 }
-function itemRows(o,editable=true){
+function itemRows(o,editable=true,includeBlend=false){
   return (o.order_items||[]).map(i=>{
     const p=parseOrderLine(i.item_text);
-    return `<div class="item-row">
+    return `<div class="item-row${includeBlend?' admin-item-row':''}">
       <div>${esc(p.qty)}</div>
       <div>${esc(p.container)}</div>
       <div>${esc(p.item)}</div>
       ${editable
         ?`<input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot(s)" ${o.shipped?'disabled':''}>`
         :`<div>${esc(i.lot_numbers||'')}</div>`}
+      ${includeBlend?`<div class="inline-blend"><input
+        type="checkbox"
+        data-blend-item="${i.id}"
+        ${i.requires_blending?'checked':''}
+        ${o.shipped?'disabled':''}
+        aria-label="Blend ${esc(p.item||i.item_text)}"></div>`:''}
     </div>`;
   }).join('');
-}
-
-function blendCheckboxes(o){
-  return `
-    <div class="blend-item-head" aria-hidden="true">&nbsp;</div>
-    ${(o.order_items||[]).map(i=>`
-      <div class="blend-item-row">
-        <input
-          type="checkbox"
-          data-blend-item="${i.id}"
-          ${i.requires_blending?'checked':''}
-          ${o.shipped?'disabled':''}
-          aria-label="Blend ${esc(parseOrderLine(i.item_text).item||i.item_text)}">
-      </div>`).join('')}
-  `;
 }
 
 async function changeTracker(e){
@@ -351,11 +342,13 @@ async function trackerLoad(){
       <td><strong>${esc(o.customer_name)}</strong></td>
       <td>${poLabel(o)}</td>
       <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
-      <td class="items">
-        <div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>
-        ${itemRows(o,true)}
+      <td class="items${page==='desktop'?' admin-items':''}">
+        <div class="item-head${page==='desktop'?' admin-item-head':''}">
+          <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div>
+          ${page==='desktop'?'<div class="inline-blend-head">Blend</div>':''}
+        </div>
+        ${itemRows(o,true,page==='desktop')}
       </td>
-      ${page==='desktop'?`<td class="blend-column">${blendCheckboxes(o)}</td>`:''}
       <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
       ${page==='desktop'?`
