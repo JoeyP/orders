@@ -25,26 +25,22 @@ function fmtDate(s){
 function localDateString(d){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function trackerStatusClass(o){
-  // Warehouse view: Ready orders are removed entirely, so only operational
-  // exceptions need color. Keep Back Ordered charcoal and overdue/due-today red.
+function deliveryUrgencyClass(o,{showReadyGreen=false}={}){
+  if(o.shipped)return showReadyGreen?'gray':'';
   if(o.back_ordered)return'charcoal';
-  if(!o.requested_delivery_date)return'';
-  const t=localDateString(new Date());
-  if(o.requested_delivery_date<=t&&!o.ready_to_ship)return'red';
+  if(o.requested_delivery_date){
+    const today=localDateString(new Date());
+    const d=new Date(); d.setDate(d.getDate()+1);
+    const tomorrow=localDateString(d);
+    if(!o.ready_to_ship&&o.requested_delivery_date<=today)return'red';
+    if(!o.ready_to_ship&&o.requested_delivery_date===tomorrow)return'orange';
+  }
+  if(showReadyGreen&&o.ready_to_ship)return'green';
   return'';
 }
-function mobileStatusClass(o){
-  // Mobile Orders: keep shipped gray, back ordered charcoal, red overdue/due today,
-  // and green Ready. Orange/yellow are intentionally removed.
-  if(o.shipped)return'gray';
-  if(o.back_ordered)return'charcoal';
-  if(!o.requested_delivery_date)return o.ready_to_ship?'green':'';
-  const t=localDateString(new Date());
-  if(o.requested_delivery_date<=t&&!o.ready_to_ship)return'red';
-  if(o.ready_to_ship)return'green';
-  return'';
-}
+function trackerStatusClass(o){return deliveryUrgencyClass(o);}
+function adminStatusClass(o){return deliveryUrgencyClass(o);}
+function mobileStatusClass(o){return deliveryUrgencyClass(o,{showReadyGreen:true});}
 function statusClass(o){
   // Backward-compatible helper for any remaining generic use.
   return mobileStatusClass(o);
@@ -254,7 +250,7 @@ function itemRows(o,editable=true){
 }
 
 function blendCheckboxes(o){
-  return (o.order_items||[]).map(i=>`
+  const checks=(o.order_items||[]).map(i=>`
     <div class="blend-line-check">
       <input
         type="checkbox"
@@ -263,6 +259,7 @@ function blendCheckboxes(o){
         ${o.shipped?'disabled':''}
         aria-label="Blend ${esc(parseOrderLine(i.item_text).item||i.item_text)}">
     </div>`).join('');
+  return `<div class="blend-head-spacer" aria-hidden="true"></div>${checks}`;
 }
 
 async function changeTracker(e){
@@ -346,8 +343,7 @@ async function trackerLoad(){
 
   filtered().forEach(o=>{
     const tr=document.createElement('tr');
-    // Admin Orders is intentionally uncolored. Tracker only keeps red/charcoal.
-    tr.className=page==='desktop'?'':trackerStatusClass(o);
+    tr.className=page==='desktop'?adminStatusClass(o):trackerStatusClass(o);
     tr.innerHTML=`
       <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
       <td><strong>${esc(o.customer_name)}</strong></td>
@@ -508,6 +504,7 @@ async function forecastLoad(){
         g.containers.set(cont,(g.containers.get(cont)||0)+qty);
         g.gallons+=gallons;
         g.demands.push({
+          itemId:i.id,
           orderId:o.id,
           customer:o.customer_name||'',
           po:poLabel(o),
@@ -560,11 +557,39 @@ async function forecastLoad(){
               </div>
               <div class="blending-demand-qty">${esc(d.qty)} × ${esc(d.container)}</div>
               <div class="blending-demand-lot">Lot: <strong>${esc(d.lot||'—')}</strong></div>
+              <label class="blend-complete-action">
+                <input type="checkbox" data-blend-complete="${d.itemId}">
+                <span>Complete</span>
+              </label>
             </div>`).join('')}
           </div>
         </div>`).join('')
       :'<div class="panel">No items are currently selected for blending. Check Blend on individual line items from Admin Orders.</div>';
   }
+
+  document.querySelectorAll('[data-blend-complete]').forEach(cb=>{
+    cb.addEventListener('change',async()=>{
+      if(!cb.checked)return;
+
+      const itemId=cb.dataset.blendComplete;
+      cb.disabled=true;
+
+      const{error}=await supabase.from('order_items').update({
+        requires_blending:false,
+        updated_by:user.id,
+        updated_by_email:user.email||null
+      }).eq('id',itemId);
+
+      if(error){
+        cb.checked=false;
+        cb.disabled=false;
+        alert(error.message);
+        return;
+      }
+
+      await forecastLoad();
+    });
+  });
 
   if($('refreshText'))$('refreshText').textContent='Updated '+new Date().toLocaleTimeString()+' • Auto-refreshes every 60 seconds.';
 }
@@ -672,6 +697,7 @@ function showNewOrderSuccess(o){
         <div class="success-modal-actions">
           <a id="viewNewOrder" class="primary success-modal-button" href="#">View Order</a>
           <button id="addAnotherOrder" type="button" class="success-modal-button">Add Another Order</button>
+          <a id="newOrderHome" class="success-modal-button" href="index.html">Home</a>
         </div>
       </div>`;
     document.body.appendChild(modal);

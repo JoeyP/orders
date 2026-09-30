@@ -462,9 +462,48 @@ body[data-page="deliveries"] .delivery-summary>div:first-child{
 }
 
 
-/* V3.4.2 page-specific order coloring */
-body[data-page="desktop"] #body tr,
-body[data-page="desktop"] #body tr td{
-  background:#fff!important;
-  color:var(--text)!important;
+
+
+/* V3.4.5 delivery colors + Admin Blend alignment */
+.blend-column{vertical-align:top!important;padding-top:0!important}
+.blend-head-spacer{height:30px;box-sizing:border-box;border-bottom:1px solid rgba(0,0,0,.12)}
+.blend-line-check{height:53px!important;min-height:53px!important;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-bottom:1px dashed rgba(0,0,0,.15)}
+.blend-line-check input{width:21px;height:21px;margin:0;padding:0}
+body[data-page="desktop"] #body tr.red td{background:var(--red)!important}
+body[data-page="desktop"] #body tr.orange td{background:var(--orange)!important}
+body[data-page="desktop"] #body tr.charcoal td{background:var(--charcoal)!important;color:#fff!important}
+
+/* V3.4.6 Blending completion workflow */
+.blending-demand-row{
+  grid-template-columns:minmax(230px,1fr) 135px minmax(120px,160px) 110px!important;
+}
+.blend-complete-action{
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  margin:0!important;
+  min-height:38px;
+  padding:5px 8px;
+  border:1px solid #94a3b8;
+  border-radius:8px;
+  background:#fff;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+  user-select:none;
+}
+.blend-complete-action input{
+  width:20px;
+  height:20px;
+  margin:0;
+  padding:0;
+}
+@media(max-width:700px){
+  .blending-demand-row{
+    grid-template-columns:1fr 1fr!important;
+  }
+  .blend-complete-action{
+    min-height:44px;
+  }
 }
