@@ -250,16 +250,18 @@ function itemRows(o,editable=true){
 }
 
 function blendCheckboxes(o){
-  const checks=(o.order_items||[]).map(i=>`
-    <div class="blend-line-check">
-      <input
-        type="checkbox"
-        data-blend-item="${i.id}"
-        ${i.requires_blending?'checked':''}
-        ${o.shipped?'disabled':''}
-        aria-label="Blend ${esc(parseOrderLine(i.item_text).item||i.item_text)}">
-    </div>`).join('');
-  return `<div class="blend-head-spacer" aria-hidden="true"></div>${checks}`;
+  return `
+    <div class="blend-item-head" aria-hidden="true">&nbsp;</div>
+    ${(o.order_items||[]).map(i=>`
+      <div class="blend-item-row">
+        <input
+          type="checkbox"
+          data-blend-item="${i.id}"
+          ${i.requires_blending?'checked':''}
+          ${o.shipped?'disabled':''}
+          aria-label="Blend ${esc(parseOrderLine(i.item_text).item||i.item_text)}">
+      </div>`).join('')}
+  `;
 }
 
 async function changeTracker(e){

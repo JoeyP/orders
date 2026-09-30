@@ -561,3 +561,53 @@ body[data-page="desktop"] .blend-line-check input{
 body[data-page="desktop"] #body tr.green td{
   background:var(--green)!important;
 }
+
+/* V3.5.0 — structural Blend alignment (replaces spacer nudging) */
+body[data-page="desktop"] .blend-column{
+  vertical-align:top!important;
+  padding-top:0!important;
+}
+body[data-page="desktop"] .blend-item-head{
+  box-sizing:border-box;
+  height:30px;
+  border-bottom:1px solid rgba(0,0,0,.15);
+  font-size:10px;
+  line-height:1;
+}
+body[data-page="desktop"] .blend-item-row{
+  box-sizing:border-box;
+  height:53px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-bottom:1px dashed rgba(0,0,0,.15);
+}
+body[data-page="desktop"] .blend-item-row input{
+  width:21px!important;
+  height:21px!important;
+  margin:0!important;
+  padding:0!important;
+}
+/* Old spacer classes are intentionally neutralized. */
+body[data-page="desktop"] .blend-head-spacer,
+body[data-page="desktop"] .blend-line-check{
+  display:none!important;
+}
+
+/* V3.5.1 — uniform New Order success actions */
+.success-modal-actions .success-modal-button,
+.success-modal-actions a.success-modal-button,
+.success-modal-actions button.success-modal-button{
+  background:#2563eb!important;
+  color:#fff!important;
+  border:1px solid #2563eb!important;
+  box-shadow:none!important;
+  text-decoration:none!important;
+}
+.success-modal-actions .success-modal-button:hover,
+.success-modal-actions a.success-modal-button:hover,
+.success-modal-actions button.success-modal-button:hover{
+  background:#1d4ed8!important;
+  color:#fff!important;
+  border-color:#1d4ed8!important;
+}
