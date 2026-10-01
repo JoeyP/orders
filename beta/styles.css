@@ -712,3 +712,23 @@ body[data-page="desktop"] .admin-order-details-cell{min-width:940px;padding:0}
   .blend-lot-workflow{grid-template-columns:1fr}
   .blend-group-complete{width:100%}
 }
+
+
+/* V3.5.6 Beta — Home visual refinement */
+.home-header{flex-direction:column;gap:10px;text-align:center}
+.home-logo{max-width:230px;max-height:100px}
+.home-title{font-size:22px;font-weight:800;color:#475569;margin-top:0}
+.home-menu a{
+  align-items:center!important;
+  text-align:center!important;
+  background:#173b6c!important;
+  border-color:#173b6c!important;
+  box-shadow:0 4px 12px rgba(23,59,108,.16)!important;
+}
+.home-menu a:hover{
+  background:#102e56!important;
+  border-color:#102e56!important;
+  box-shadow:0 8px 18px rgba(23,59,108,.22)!important;
+}
+.home-logout{background:#173b6c!important}
+.home-logout:hover{background:#102e56!important}
