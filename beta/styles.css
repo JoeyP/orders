@@ -794,3 +794,13 @@ body[data-page="desktop"] .tablewrap thead th{
   background:#f8fafc;
   box-shadow:0 1px 0 #d1d5db;
 }
+
+
+/* V3.5.10 Beta — product labels in fixed Admin header */
+body[data-page="desktop"] .admin-order-lots-head{min-width:570px;padding:0!important}
+body[data-page="desktop"] .admin-order-lots-title{padding:10px 12px;border-bottom:1px solid #d1d5db;text-align:left}
+body[data-page="desktop"] .admin-fixed-item-head{
+  display:grid;grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px) 62px;
+  gap:8px;align-items:center;padding:9px 8px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;
+}
+body[data-page="desktop"] .admin-fixed-item-head span:last-child{text-align:center}
