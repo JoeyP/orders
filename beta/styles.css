@@ -732,3 +732,32 @@ body[data-page="desktop"] .admin-order-details-cell{min-width:940px;padding:0}
 }
 .home-logout{background:#173b6c!important}
 .home-logout:hover{background:#102e56!important}
+
+
+/* V3.5.7 Beta — sitewide B&L navy action buttons */
+button.primary,
+a.primary,
+.links a,
+.menu a,
+.home-menu a,
+.home-logout,
+.success-modal-actions .success-modal-button,
+.success-modal-actions a.success-modal-button,
+.success-modal-actions button.success-modal-button{
+  background:#173b6c!important;
+  color:#fff!important;
+  border-color:#173b6c!important;
+}
+button.primary:hover,
+a.primary:hover,
+.links a:hover,
+.menu a:hover,
+.home-menu a:hover,
+.home-logout:hover,
+.success-modal-actions .success-modal-button:hover,
+.success-modal-actions a.success-modal-button:hover,
+.success-modal-actions button.success-modal-button:hover{
+  background:#102e56!important;
+  color:#fff!important;
+  border-color:#102e56!important;
+}
