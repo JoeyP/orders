@@ -808,3 +808,11 @@ body[data-page="desktop"] .admin-fixed-item-head span:last-child{text-align:cent
 
 /* V3.5.11 Beta — single-row Admin product header */
 body[data-page="desktop"] .admin-fixed-item-head{padding:9px 8px}
+
+
+/* V3.5.12 Beta — match product header typography to Admin columns */
+body[data-page="desktop"] .admin-fixed-item-head{
+  font-size:inherit!important;
+  font-weight:inherit!important;
+  text-transform:none!important;
+}
