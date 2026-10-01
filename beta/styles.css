@@ -847,3 +847,7 @@ body[data-page="tracker"] .tracker-fixed-item-head{
   font-size:inherit;font-weight:inherit;text-transform:none;
 }
 body[data-page="tracker"] .item-head{display:none}
+
+
+/* V3.5.16 Beta — remove empty repeated product header row on Admin */
+body[data-page="desktop"] .admin-item-head{display:none!important}
