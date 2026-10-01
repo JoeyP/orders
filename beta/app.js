@@ -344,7 +344,7 @@ async function trackerLoad(){
       <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
       <td class="items${page==='desktop'?' admin-items':''}">
         <div class="item-head${page==='desktop'?' admin-item-head':''}">
-          <div>${page==='tracker'?'':'Qty'}</div><div>${page==='tracker'?'':'Container'}</div><div>${page==='tracker'?'':'Item'}</div><div>${(page==='desktop'||page==='tracker')?'':'Lot Number(s)'}</div>
+          <div>${(page==='tracker'||page==='desktop')?'':'Qty'}</div><div>${(page==='tracker'||page==='desktop')?'':'Container'}</div><div>${(page==='tracker'||page==='desktop')?'':'Item'}</div><div>${(page==='desktop'||page==='tracker')?'':'Lot Number(s)'}</div>
           ${page==='desktop'?'<div class="inline-blend-head"></div>':''}
         </div>
         ${itemRows(o,true,page==='desktop')}
