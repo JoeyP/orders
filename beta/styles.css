@@ -804,3 +804,7 @@ body[data-page="desktop"] .admin-fixed-item-head{
   gap:8px;align-items:center;padding:9px 8px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;
 }
 body[data-page="desktop"] .admin-fixed-item-head span:last-child{text-align:center}
+
+
+/* V3.5.11 Beta — single-row Admin product header */
+body[data-page="desktop"] .admin-fixed-item-head{padding:9px 8px}
