@@ -774,3 +774,23 @@ body:not([data-page="home"]) .links a:hover{
   color:#111827!important;
   border-color:#9ca3af!important;
 }
+
+
+/* V3.5.9 Beta — Admin orders scroll inside panel with fixed column header */
+body[data-page="desktop"] .panel{overflow:visible}
+body[data-page="desktop"] .tablewrap{
+  max-height:calc(100vh - 250px);
+  min-height:360px;
+  overflow:auto;
+  border:1px solid #d1d5db;
+  border-radius:10px;
+  background:#fff;
+}
+body[data-page="desktop"] .tablewrap table{margin:0}
+body[data-page="desktop"] .tablewrap thead th{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#f8fafc;
+  box-shadow:0 1px 0 #d1d5db;
+}
