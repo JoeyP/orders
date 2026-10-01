@@ -816,3 +816,23 @@ body[data-page="desktop"] .admin-fixed-item-head{
   font-weight:inherit!important;
   text-transform:none!important;
 }
+
+
+/* V3.5.13 Beta — Order Tracker inner scroll with fixed header */
+body[data-page="tracker"] .panel{overflow:visible}
+body[data-page="tracker"] .tablewrap{
+  max-height:calc(100vh - 235px);
+  min-height:360px;
+  overflow:auto;
+  border:1px solid #d1d5db;
+  border-radius:10px;
+  background:#fff;
+}
+body[data-page="tracker"] .tablewrap table{margin:0}
+body[data-page="tracker"] .tablewrap thead th{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#f8fafc;
+  box-shadow:0 1px 0 #d1d5db;
+}
