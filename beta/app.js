@@ -255,35 +255,6 @@ function itemRows(o,editable=true,includeBlend=false){
   }).join('');
 }
 
-function adminOrderDetails(o){
-  const items=(o.order_items||[]).map(i=>{
-    const p=parseOrderLine(i.item_text);
-    return `<div class="admin-detail-product-row">
-      <div>${esc(p.qty)}</div>
-      <div>${esc(p.container)}</div>
-      <div>${esc(p.item)}</div>
-      <div><input class="lot" data-lot="${i.id}" value="${esc(i.lot_numbers||'')}" placeholder="Lot(s)" ${o.shipped?'disabled':''}></div>
-      <div class="admin-center"><input type="checkbox" data-blend-item="${i.id}" ${i.requires_blending?'checked':''} ${o.shipped?'disabled':''} aria-label="Blend ${esc(p.item||i.item_text)}"></div>
-    </div>`;
-  }).join('');
-  return `<div class="admin-detail-grid">
-    <div class="admin-detail-head">
-      <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div><div>Blend</div>
-      <div>Back Ordered</div><div>Ready</div><div>Scheduled</div><div>Pickup Date</div><div>Shipped</div>
-    </div>
-    <div class="admin-detail-body">
-      <div class="admin-detail-products">${items}</div>
-      <div class="admin-order-controls">
-        <div class="admin-center"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></div>
-        <div class="admin-center"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></div>
-        <div class="admin-center"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></div>
-        <div><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></div>
-        <div class="admin-center"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></div>
-      </div>
-    </div>
-  </div>`;
-}
-
 async function changeTracker(e){
   const t=e.target;
 
@@ -366,26 +337,26 @@ async function trackerLoad(){
   filtered().forEach(o=>{
     const tr=document.createElement('tr');
     tr.className=page==='desktop'?adminStatusClass(o):trackerStatusClass(o);
-    if(page==='desktop'){
-      tr.innerHTML=`
-        <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
-        <td><strong>${esc(o.customer_name)}</strong></td>
-        <td>${poLabel(o)}</td>
-        <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
-        <td class="admin-order-details-cell">${adminOrderDetails(o)}</td>
-        <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
-    }else{
-      tr.innerHTML=`
-        <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
-        <td><strong>${esc(o.customer_name)}</strong></td>
-        <td>${poLabel(o)}</td>
-        <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
-        <td class="items"><div class="item-head"><div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div></div>${itemRows(o,true,false)}</td>
-        <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
-        <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
-        <td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>
-        <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
-    }
+    tr.innerHTML=`
+      <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
+      <td><strong>${esc(o.customer_name)}</strong></td>
+      <td>${poLabel(o)}</td>
+      <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
+      <td class="items${page==='desktop'?' admin-items':''}">
+        <div class="item-head${page==='desktop'?' admin-item-head':''}">
+          <div>Qty</div><div>Container</div><div>Item</div><div>Lot Number(s)</div>
+          ${page==='desktop'?'<div class="inline-blend-head">Blend</div>':''}
+        </div>
+        ${itemRows(o,true,page==='desktop')}
+      </td>
+      <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
+      <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
+      ${page==='desktop'?`
+        <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
+        <td><input class="pickup" type="date" data-pickup="${o.id}" value="${o.scheduled_pickup_date||''}" ${o.shipped?'disabled':''}></td>
+      `:''}
+      <td class="chk"><input type="checkbox" data-shipped="${o.id}" ${o.shipped?'checked':''}></td>
+      <td class="actions"><button type="button" data-edit-order="${o.id}">Edit</button></td>`;
     body.appendChild(tr);
   });
   wireOrderActions();
