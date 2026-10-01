@@ -836,3 +836,14 @@ body[data-page="tracker"] .tablewrap thead th{
   background:#f8fafc;
   box-shadow:0 1px 0 #d1d5db;
 }
+
+
+/* V3.5.14 Beta — product labels in fixed Order Tracker header */
+body[data-page="tracker"] .tracker-order-head{min-width:500px;padding:0!important}
+body[data-page="tracker"] .tracker-fixed-item-head{
+  display:grid;
+  grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px);
+  gap:8px;align-items:center;padding:9px 8px;text-align:left;
+  font-size:inherit;font-weight:inherit;text-transform:none;
+}
+body[data-page="tracker"] .item-head{display:none}
