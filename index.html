@@ -1,16 +1,19 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>B&amp;L Neeley Orders</title><link rel="stylesheet" href="styles.css?v=3.5.2"></head>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>B&amp;L Neeley Orders</title><link rel="stylesheet" href="styles.css?v=3.5.8"></head>
 <body data-page="home"><div class="wrap narrow">
 <div data-auth="login" class="login"><h2>B&L Neeley Orders</h2><form class="login-form"><input class="full" name="email" type="email" placeholder="Email" required><div style="height:8px"></div><input class="full" name="password" type="password" placeholder="Password" required><div style="height:12px"></div><button class="primary full">Sign In</button><div class="error"></div></form></div>
-<div data-auth="app" class="card hidden">
-  <div class="top"><span class="user-email small"></span><a class="logout small" href="#">Log out</a></div>
-  <h1>B&amp;L Neeley Orders</h1>
-  <div class="menu">
-    <a href="new.html">+ New Order</a>
-    <a href="mobile.html">Mobile Orders</a>
-    <a href="tracker.html">Order Tracker</a>
-    <a href="deliveries.html">Deliveries</a>
-    <a href="blending.html">Blending</a>
-    <a href="desktop.html">Admin Orders</a>
-  </div>
+<div data-auth="app" class="home-shell hidden">
+  <header class="home-header">
+    <img class="home-logo" src="logo.png" alt="B&amp;L Neeley" onerror="this.style.display='none'">
+    <div class="home-subtitle home-title">Order Management System</div>
+  </header>
+  <nav class="home-menu">
+    <a href="new.html"><strong>+ New Order</strong><span>Enter a customer order</span></a>
+    <a href="mobile.html"><strong>Mobile Orders</strong><span>View current orders</span></a>
+    <a href="tracker.html"><strong>Order Tracker</strong><span>Warehouse fulfillment queue</span></a>
+    <a href="deliveries.html"><strong>Deliveries</strong><span>B&amp;L delivery orders</span></a>
+    <a href="blending.html"><strong>Blending</strong><span>Active blending queue</span></a>
+    <a href="desktop.html"><strong>Admin Orders</strong><span>Full order management</span></a>
+  </nav>
+  <footer class="home-footer"><div>Logged in as: <strong class="user-email"></strong></div><a class="logout home-logout" href="#">Log Out</a></footer>
 </div></div>
-<script type="module" src="app.js?v=3.5.2"></script></body></html>
+<script type="module" src="app.js?v=3.5.6"></script></body></html>
