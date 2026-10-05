@@ -25,16 +25,28 @@ function fmtDate(s){
 function localDateString(d){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+function nextBusinessDateString(from=new Date()){
+  const d=new Date(from);
+  do{
+    d.setDate(d.getDate()+1);
+  }while(d.getDay()===0||d.getDay()===6);
+  return localDateString(d);
+}
+function operationalDueDate(o){
+  return o.scheduled_pickup_date||o.requested_delivery_date||'';
+}
 function deliveryUrgencyClass(o,{showReadyGreen=false}={}){
   if(o.shipped)return showReadyGreen?'gray':'';
   if(o.back_ordered)return'charcoal';
-  if(o.requested_delivery_date){
+
+  const dueDate=operationalDueDate(o);
+  if(dueDate){
     const today=localDateString(new Date());
-    const d=new Date(); d.setDate(d.getDate()+1);
-    const tomorrow=localDateString(d);
-    if(!o.ready_to_ship&&o.requested_delivery_date<=today)return'red';
-    if(!o.ready_to_ship&&o.requested_delivery_date===tomorrow)return'orange';
+    const nextBusinessDay=nextBusinessDateString(new Date());
+    if(!o.ready_to_ship&&dueDate<=today)return'red';
+    if(!o.ready_to_ship&&dueDate===nextBusinessDay)return'orange';
   }
+
   if(showReadyGreen&&o.ready_to_ship)return'green';
   return'';
 }
