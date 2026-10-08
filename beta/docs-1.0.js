@@ -22,7 +22,23 @@ async function init(){
  orders=o||[];customers=c||[];shipProducts=sp||[];coaProducts=cp||[];carriers=ca||[];
  if(document.body.dataset.page==='coa')setupCoa(); else if(document.body.dataset.page==='bol')setupBol(); else setupMasters();
 }
-document.querySelector('.login-form')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,{error}=await sb.auth.signInWithPassword({email:f.email.value.trim(),password:f.password.value});if(error)f.querySelector('.error').textContent=error.message;else location.reload()});
+document.querySelector('.login-form')?.addEventListener('submit',async e=>{
+ e.preventDefault();
+ const form=e.currentTarget;
+ const email=form.querySelector('input[name="email"]')?.value.trim();
+ const password=form.querySelector('input[name="password"]')?.value;
+ const message=form.querySelector('.error');
+ const submit=form.querySelector('button[type="submit"],button');
+ if(message)message.textContent='';
+ if(!email||!password){if(message)message.textContent='Enter your email and password.';return;}
+ if(submit){submit.disabled=true;submit.textContent='Signing in…';}
+ try{
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  if(error){if(message)message.textContent=error.message;return;}
+  await init();
+ }catch(err){console.error('Sign in failed',err);if(message)message.textContent=err?.message||'Unable to sign in. Please try again.';}
+ finally{if(submit){submit.disabled=false;submit.textContent='Sign In';}}
+});
 document.querySelectorAll('.logout').forEach(a=>a.onclick=async e=>{e.preventDefault();await sb.auth.signOut();location.href='index.html'});
 
 function orderLabel(o){return `${o.customer_name} — ${o.requested_delivery_date||'No date'} — ${o.po_number||o.po_status||'No PO'}`}
