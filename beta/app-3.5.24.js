@@ -420,7 +420,7 @@ async function trackerLoad(){
     tr.className=page==='desktop'?adminStatusClass(o):trackerStatusClass(o);
     tr.innerHTML=`
       <td>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'<span class="small">No date</span>'}</td>
-      <td><strong>${esc(o.customer_name)}</strong>${o.created_by_email?`<div class="small entered-by">Entered by: ${esc(o.created_by_email)}</div>`:""}</td>
+      <td><strong>${esc(o.customer_name)}</strong>${o.created_by_email?`<div class="entered-by">${esc(o.created_by_email)}</div>`:''}</td>
       <td>${poLabel(o)}</td>
       <td><span class="delivery-badge">${esc(deliveryLabel(o))}</span></td>
       <td class="items${page==='desktop'?' admin-items':''}">
@@ -1195,7 +1195,6 @@ async function mobileLoad(){
         <div>
           <div class="customer">${esc(o.customer_name)}</div>
           <div class="small">${poLabel(o)}</div>
-          ${o.created_by_email?`<div class="small entered-by">Entered by: ${esc(o.created_by_email)}</div>`:""}
         </div>
         <div><strong>${o.requested_delivery_date?fmtDate(o.requested_delivery_date):'No requested date'}</strong></div>
       </div>
@@ -1212,6 +1211,7 @@ async function mobileLoad(){
       <span class="pill">Scheduled: ${o.scheduled?'Yes':'No'}</span>
       ${o.scheduled_pickup_date?`<span class="pill">Pickup: ${fmtDate(o.scheduled_pickup_date)}</span>`:''}
       <span class="pill">Shipped: ${o.shipped?'Yes':'No'}</span>
+      ${o.created_by_email?`<div class="entered-by mobile-entered-by">${esc(o.created_by_email)}</div>`:''}
       <div class="card-actions"><button type="button" data-edit-order="${o.id}">Edit Order</button></div>
     </div>`).join('');
 
