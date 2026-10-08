@@ -7,10 +7,10 @@ function parseLine(s){let m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-
 function showLogin(on){document.querySelector('[data-auth=login]').classList.toggle('hidden',!on);document.querySelector('[data-auth=app]').classList.toggle('hidden',on)}
 async function init(){
  const {data:{session}}=await sb.auth.getSession(); user=session?.user;
- if(!user){showLogin(true);return}
+ if(!user){location.replace('index.html?return='+encodeURIComponent(location.pathname.split('/').pop()));return}
  const {data:a,error:accessError}=await sb.from('user_page_access').select('admin_orders').eq('user_id',user.id).maybeSingle();
  if(accessError){console.error('Could not load document-tool access',accessError);}
- if(a && a.admin_orders===false){showLogin(false);document.querySelector('[data-auth=app]').innerHTML='<div class="card"><h2>Access Denied</h2><a href="index.html">Return Home</a></div>';return}
+ if(!a?.admin_orders){showLogin(false);document.querySelector('[data-auth=app]').innerHTML='<div class="card"><h2>Access Denied</h2><a href="index.html">Return Home</a></div>';return}
  showLogin(false);document.querySelectorAll('.user-email').forEach(x=>x.textContent=user.email||'');
  const [{data:o},{data:c},{data:sp},{data:cp},{data:ca}]=await Promise.all([
   sb.from('orders').select('*,order_items(*)').eq('shipped',false).order('requested_delivery_date'),
@@ -22,23 +22,6 @@ async function init(){
  orders=o||[];customers=c||[];shipProducts=sp||[];coaProducts=cp||[];carriers=ca||[];
  if(document.body.dataset.page==='coa')setupCoa(); else if(document.body.dataset.page==='bol')setupBol(); else setupMasters();
 }
-document.querySelector('.login-form')?.addEventListener('submit',async e=>{
- e.preventDefault();
- const form=e.currentTarget;
- const email=form.querySelector('input[name="email"]')?.value.trim();
- const password=form.querySelector('input[name="password"]')?.value;
- const message=form.querySelector('.error');
- const submit=form.querySelector('button[type="submit"],button');
- if(message)message.textContent='';
- if(!email||!password){if(message)message.textContent='Enter your email and password.';return;}
- if(submit){submit.disabled=true;submit.textContent='Signing in…';}
- try{
-  const {error}=await sb.auth.signInWithPassword({email,password});
-  if(error){if(message)message.textContent=error.message;return;}
-  await init();
- }catch(err){console.error('Sign in failed',err);if(message)message.textContent=err?.message||'Unable to sign in. Please try again.';}
- finally{if(submit){submit.disabled=false;submit.textContent='Sign In';}}
-});
 document.querySelectorAll('.logout').forEach(a=>a.onclick=async e=>{e.preventDefault();await sb.auth.signOut();location.href='index.html'});
 
 function orderLabel(o){return `${o.customer_name} — ${o.requested_delivery_date||'No date'} — ${o.po_number||o.po_status||'No PO'}`}
