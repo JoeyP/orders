@@ -10,9 +10,8 @@
         <label>Name<input id="addUserName" class="full" type="text" required autocomplete="off"></label>
         <label>Email<input id="addUserEmail" class="full" type="email" required autocomplete="off"></label>
         <label>Profile<select id="addUserProfile" class="full"><option value="service_rep">Service Rep</option><option value="warehouse">Warehouse</option><option value="admin">Admin</option></select></label>
-        <label>Temporary Password<input id="addUserPassword" class="full" type="text" minlength="4" required autocomplete="off"></label>
+        <label>Password<input id="addUserPassword" class="full" type="text" minlength="4" required autocomplete="off"></label>
       </div>
-      <button id="generateUserPassword" type="button">Generate Password</button>
       <div class="small" style="margin:10px 0">Choose the profile defaults, then adjust individual page access if needed.</div>
       <div id="addUserAccess" class="user-access-grid"></div>
       <div class="user-access-actions"><button id="createUserButton" class="primary" type="submit">Create User</button><span id="addUserStatus" class="small" role="status"></span></div>
