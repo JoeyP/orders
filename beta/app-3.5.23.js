@@ -1285,11 +1285,6 @@ async function userAdminAction(payload){
   if(data?.error)throw new Error(data.error);
   return data;
 }
-function generateTemporaryPassword(){
-  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  const bytes=crypto.getRandomValues(new Uint8Array(18));
-  return Array.from(bytes,n=>alphabet[n%alphabet.length]).join('');
-}
 function setupUserTools(){
   const form=$('addUserForm');
   if(!form)return;
@@ -1301,8 +1296,7 @@ function setupUserTools(){
   };
   profile.addEventListener('change',renderChecks);
   renderChecks();
-  $('addUserPassword').value=generateTemporaryPassword();
-  $('generateUserPassword').onclick=()=>$('addUserPassword').value=generateTemporaryPassword();
+  $('generateUserPassword').onclick=()=>
   form.onsubmit=async e=>{
     e.preventDefault();
     const status=$('addUserStatus'),btn=$('createUserButton');
@@ -1311,9 +1305,8 @@ function setupUserTools(){
     btn.disabled=true;status.textContent='Creating account…';
     try{
       await userAdminAction({action:'create',name:$('addUserName').value.trim(),email:$('addUserEmail').value.trim(),password:$('addUserPassword').value,profile:profile.value,access});
-      status.textContent='Account created. Share the temporary password privately.';
+      status.textContent='Account created.';
       form.reset();profile.value='service_rep';renderChecks();
-      $('addUserPassword').value=generateTemporaryPassword();
       await usersLoad();
     }catch(err){status.textContent=err.message;}
     finally{btn.disabled=false;}
