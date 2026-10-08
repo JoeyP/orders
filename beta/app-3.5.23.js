@@ -1347,10 +1347,10 @@ async function usersLoad(){
 
   list.querySelectorAll('.change-user-password').forEach(btn=>btn.addEventListener('click',async()=>{
     const card=btn.closest('.user-access-card');
-    const password=prompt('Enter a new password (at least 12 characters) for '+card.querySelector('strong').textContent+':');
+    const password=prompt('Enter a new password (at least 4 characters) for '+card.querySelector('strong').textContent+':');
     if(password===null)return;
     const status=card.querySelector('.save-status');
-    if(password.length<12){status.textContent='Password must be at least 12 characters.';return;}
+    if(password.length<4){status.textContent='Password must be at least 4 characters.';return;}
     if(!confirm('Change this user’s password?'))return;
     btn.disabled=true;status.textContent='Updating password…';
     try{await userAdminAction({action:'password',user_id:card.dataset.userId,password});status.textContent='Password changed.';}
