@@ -4,7 +4,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSessio
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let user,orders=[],coaProducts=[],shipProducts=[],customers=[],carriers=[];
 function parseLine(s){let m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(?:gallons?|gal|g)?\s*\)?\s*(.*)$/i);return m?{qty:+m[1],container:m[2],item:m[3].trim()}:{qty:1,container:'',item:String(s||'').trim()}}
-function showLogin(on){document.querySelector('[data-auth=login]').classList.toggle('hidden',!on);document.querySelector('[data-auth=app]').classList.toggle('hidden',on)}
+function showLogin(on){document.querySelector('[data-auth=login]')?.classList.toggle('hidden',!on);document.querySelector('[data-auth=app]')?.classList.toggle('hidden',on)}
 async function init(){
  const {data:{session}}=await sb.auth.getSession(); user=session?.user;
  if(!user){location.replace('index.html?return='+encodeURIComponent(location.pathname.split('/').pop()));return}
