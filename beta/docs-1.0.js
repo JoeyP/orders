@@ -12,15 +12,24 @@ async function init(){
  if(accessError){console.error('Could not load document-tool access',accessError);}
  if(!a?.admin_orders){showLogin(false);document.querySelector('[data-auth=app]').innerHTML='<div class="card"><h2>Access Denied</h2><a href="index.html">Return Home</a></div>';return}
  showLogin(false);document.querySelectorAll('.user-email').forEach(x=>x.textContent=user.email||'');
- const [{data:o},{data:c},{data:sp},{data:cp},{data:ca}]=await Promise.all([
-  sb.from('orders').select('*,order_items(*)').eq('shipped',false).order('requested_delivery_date'),
-  sb.from('shipping_customers').select('*').eq('active',true).order('customer_name'),
-  sb.from('shipping_products').select('*').eq('active',true).order('item_key'),
-  sb.from('coa_products').select('*').eq('active',true).order('product_name'),
-  sb.from('shipping_carriers').select('*').eq('active',true).order('carrier_name')
- ]);
- orders=o||[];customers=c||[];shipProducts=sp||[];coaProducts=cp||[];carriers=ca||[];
- if(document.body.dataset.page==='coa')setupCoa(); else if(document.body.dataset.page==='bol')setupBol(); else setupMasters();
+ try{
+  const results=await Promise.all([
+   sb.from('orders').select('*,order_items(*)').eq('shipped',false).order('requested_delivery_date'),
+   sb.from('shipping_customers').select('*').eq('active',true).order('customer_name'),
+   sb.from('shipping_products').select('*').eq('active',true).order('item_key'),
+   sb.from('coa_products').select('*').eq('active',true).order('product_name'),
+   sb.from('shipping_carriers').select('*').eq('active',true).order('carrier_name')
+  ]);
+  const [or,cr,spr,cpr,car]=results;
+  const loadError=[or,cr,spr,cpr,car].find(x=>x.error)?.error;
+  if(loadError)throw loadError;
+  orders=or.data||[];customers=cr.data||[];shipProducts=spr.data||[];coaProducts=cpr.data||[];carriers=car.data||[];
+  if(document.body.dataset.page==='coa')setupCoa(); else if(document.body.dataset.page==='bol')setupBol(); else setupMasters();
+ }catch(err){
+  console.error('Document tools failed to load',err);
+  const app=document.querySelector('[data-auth=app]');
+  if(app)app.innerHTML='<div class="card"><h2>Could not load document tools</h2><p class="error">'+esc(err?.message||String(err))+'</p><p><a href="index.html">Return Home</a></p></div>';
+ }
 }
 document.querySelectorAll('.logout').forEach(a=>a.onclick=async e=>{e.preventDefault();await sb.auth.signOut();location.href='index.html'});
 
