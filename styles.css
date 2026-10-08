@@ -865,3 +865,6 @@ body[data-page="desktop"] .admin-item-head{display:none!important}
 .user-create-grid label{display:flex;flex-direction:column;gap:6px;font-weight:600}
 .user-access-actions{flex-wrap:wrap}
 @media(max-width:650px){.user-create-grid{grid-template-columns:1fr}}
+
+.entered-by{margin-top:3px;font-size:11px;font-weight:400;color:#667085;line-height:1.25;white-space:normal}
+.mobile-entered-by{margin-top:12px}
