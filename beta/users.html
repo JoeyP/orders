@@ -3,6 +3,22 @@
 <div data-auth="login" class="login"><h2>User Access</h2><form class="login-form"><input class="full" name="email" type="email" placeholder="Email" required><div style="height:8px"></div><input class="full" name="password" type="password" placeholder="Password" required><div style="height:12px"></div><button class="primary full">Sign In</button><div class="error"></div></form></div>
 <div data-auth="app" class="hidden">
   <div class="top"><div><h1>User Access</h1><div class="small">Choose a profile for its defaults, then customize individual page access as needed.</div></div><div class="small"><a href="index.html">Home</a> · <a class="logout" href="#">Log out</a></div></div>
+  <div class="user-access-card">
+    <h2>Add User</h2>
+    <form id="addUserForm">
+      <div class="user-create-grid">
+        <label>Name<input id="addUserName" class="full" type="text" required autocomplete="off"></label>
+        <label>Email<input id="addUserEmail" class="full" type="email" required autocomplete="off"></label>
+        <label>Profile<select id="addUserProfile" class="full"><option value="service_rep">Service Rep</option><option value="warehouse">Warehouse</option><option value="admin">Admin</option></select></label>
+        <label>Temporary Password<input id="addUserPassword" class="full" type="text" minlength="12" required autocomplete="off"></label>
+      </div>
+      <button id="generateUserPassword" type="button">Generate Password</button>
+      <div class="small" style="margin:10px 0">Choose the profile defaults, then adjust individual page access if needed.</div>
+      <div id="addUserAccess" class="user-access-grid"></div>
+      <div class="user-access-actions"><button id="createUserButton" class="primary" type="submit">Create User</button><span id="addUserStatus" class="small" role="status"></span></div>
+    </form>
+  </div>
+  <h2>Existing Users</h2>
   <div id="usersList"></div>
 </div></div>
-<script type="module" src="app-3.5.22.js"></script></body></html>
+<script type="module" src="app-3.5.23.js"></script></body></html>
