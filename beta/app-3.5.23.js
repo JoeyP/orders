@@ -1296,7 +1296,6 @@ function setupUserTools(){
   };
   profile.addEventListener('change',renderChecks);
   renderChecks();
-  $('generateUserPassword').onclick=()=>
   form.onsubmit=async e=>{
     e.preventDefault();
     const status=$('addUserStatus'),btn=$('createUserButton');
