@@ -8,8 +8,9 @@ function showLogin(on){document.querySelector('[data-auth=login]').classList.tog
 async function init(){
  const {data:{session}}=await sb.auth.getSession(); user=session?.user;
  if(!user){showLogin(true);return}
- const {data:a}=await sb.from('user_page_access').select('admin_orders').eq('user_id',user.id).maybeSingle();
- if(!a?.admin_orders){showLogin(false);document.querySelector('[data-auth=app]').innerHTML='<div class="card"><h2>Access Denied</h2><a href="index.html">Return Home</a></div>';return}
+ const {data:a,error:accessError}=await sb.from('user_page_access').select('admin_orders').eq('user_id',user.id).maybeSingle();
+ if(accessError){console.error('Could not load document-tool access',accessError);}
+ if(a && a.admin_orders===false){showLogin(false);document.querySelector('[data-auth=app]').innerHTML='<div class="card"><h2>Access Denied</h2><a href="index.html">Return Home</a></div>';return}
  showLogin(false);document.querySelectorAll('.user-email').forEach(x=>x.textContent=user.email||'');
  const [{data:o},{data:c},{data:sp},{data:cp},{data:ca}]=await Promise.all([
   sb.from('orders').select('*,order_items(*)').eq('shipped',false).order('requested_delivery_date'),
