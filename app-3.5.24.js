@@ -288,7 +288,7 @@ function filtered(){
   const dateFrom=$('dateFrom')?.value||'';
   const dateTo=$('dateTo')?.value||'';
 
-  return orders.filter(o=>{
+  const result=orders.filter(o=>{
     // Order Tracker is a warehouse work queue. Once Ready, the order leaves it.
     if(page==='tracker'&&o.ready_to_ship)return false;
 
@@ -315,6 +315,8 @@ function filtered(){
       ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
       ||(f==='shipped'&&o.shipped);
   });
+  if(f==='shipped')result.sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')));
+  return result;
 }
 function itemRows(o,editable=true,includeBlend=false){
   return (o.order_items||[]).map(i=>{
@@ -466,6 +468,7 @@ async function deliveriesLoad(){
     }
     return true;
   });
+  if(f==='shipped')list.sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')));
 
   const box=$('deliveryList');
   if(!box)return;
