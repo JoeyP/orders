@@ -1275,7 +1275,7 @@ const ACCESS_FIELDS=[
   ['blending','Blending'],
   ['admin_orders','Admin Orders'],
   ['order_history','Order History'],
-  ['shipping_documents','Shipping Documents (Beta)'],
+  ['shipping_documents','Shipping Documents'],
   ['users_page','Users']
 ];
 function profileLabel(v){
