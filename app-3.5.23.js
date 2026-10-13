@@ -19,9 +19,9 @@ const PAGE_ACCESS_COLUMN={
   users:'users_page'
 };
 const PROFILE_DEFAULTS={
-  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,users_page:false},
+  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,order_history:false,users_page:false},
   warehouse:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:false,users_page:false},
-  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,users_page:true}
+  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,order_history:false,users_page:true}
 };
 async function loadUserAccess(){
   if(!user){userAccess=null;return null;}
@@ -1274,6 +1274,7 @@ const ACCESS_FIELDS=[
   ['deliveries','Deliveries'],
   ['blending','Blending'],
   ['admin_orders','Admin Orders'],
+  ['order_history','Order History'],
   ['users_page','Users']
 ];
 function profileLabel(v){
