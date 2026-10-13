@@ -16,7 +16,8 @@ const PAGE_ACCESS_COLUMN={
   deliveries:'deliveries',
   blending:'blending',
   desktop:'admin_orders',
-  users:'users_page'
+  users:'users_page',
+  shipping:'shipping_documents'
 };
 const PROFILE_DEFAULTS={
   service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,users_page:false},
@@ -43,7 +44,8 @@ function applyNavigationAccess(){
     'deliveries.html':'deliveries',
     'blending.html':'blending',
     'desktop.html':'desktop',
-    'users.html':'users'
+    'users.html':'users',
+    'shipping-documents.html':'shipping'
   };
   document.querySelectorAll('[data-page-access]').forEach(a=>{
     a.classList.toggle('hidden',!canAccess(a.dataset.pageAccess));
