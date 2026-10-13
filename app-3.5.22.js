@@ -17,6 +17,7 @@ const PAGE_ACCESS_COLUMN={
   blending:'blending',
   desktop:'admin_orders',
   users:'users_page',
+  shipping:'shipping_documents',
   history:'order_history'
 };
 const PROFILE_DEFAULTS={
@@ -44,7 +45,8 @@ function applyNavigationAccess(){
     'deliveries.html':'deliveries',
     'blending.html':'blending',
     'desktop.html':'desktop',
-    'users.html':'users'
+    'users.html':'users',
+    'shipping-documents.html':'shipping'
   };
   document.querySelectorAll('[data-page-access]').forEach(a=>{
     a.classList.toggle('hidden',!canAccess(a.dataset.pageAccess));
