@@ -8,8 +8,8 @@ let results=[],searchToken=0;
 async function start(){
  const {data:{session}}=await sb.auth.getSession();
  if(!session){location.replace('index.html?return=order-history.html');return}
- const {data:a,error}=await sb.from('user_page_access').select('admin_orders').eq('user_id',session.user.id).maybeSingle();
- if(error||!a?.admin_orders){$('historyAuth').textContent='Access denied. Admin Orders permission required.';return}
+ const {data:a,error}=await sb.from('user_page_access').select('order_history').eq('user_id',session.user.id).maybeSingle();
+ if(error||!a?.order_history){$('historyAuth').textContent='Access denied. Order History permission required.';return}
  $('historyAuth').hidden=true;$('historyApp').hidden=false;
  $('historySearch').addEventListener('input',()=>{clearTimeout(window.historyDebounce);window.historyDebounce=setTimeout(search,280)});
  const id=new URLSearchParams(location.search).get('order');if(id){$('historySearch').value=id;await search();const hit=results.find(x=>String(x.id)===id);if(hit)await show(hit)}
