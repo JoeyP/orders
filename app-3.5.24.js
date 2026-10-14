@@ -290,7 +290,7 @@ function filtered(){
 
   const result=orders.filter(o=>{
     // Order Tracker is a warehouse work queue. Once Ready, the order leaves it.
-    if(page==='tracker'&&o.ready_to_ship)return false;
+    if(page==='tracker'&&(o.shipped||(f==='ready'?!o.ready_to_ship:f==='all'?false:o.ready_to_ship)))return false;
 
     const hay=[
       o.customer_name,o.po_number,o.po_status,o.order_text,
