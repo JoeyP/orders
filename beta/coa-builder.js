@@ -5,6 +5,25 @@ const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,
 let user,orders=[],templates=[],selection=null;
 function parse(s){const m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(?:gallons?|gal|g)?\s*\)?\s*(.*)$/i);return m?{quantity:m[1],container:m[2],product:m[3].trim()}:{quantity:'1',container:'',product:String(s||'')}}
 function normalize(s){return String(s||'').toLowerCase().replace(/\.(docx|doc)$/,'').replace(/[^a-z0-9]+/g,' ').trim()}
+// Product identifiers are frequently entered as BL4NA, H-BL4NA, or shorthand 4NA.
+function codes(s){
+ const raw=String(s||'').toUpperCase().replace(/\.(DOCX|DOC)$/,'');
+ const matches=[...raw.matchAll(/(?:^|[^A-Z0-9])(?:H[- ]?)?(?:BL[- ]?)?([0-9][A-Z0-9]{1,7})(?=$|[^A-Z0-9])/g)];
+ return [...new Set(matches.map(m=>m[1]).filter(v=>/[A-Z]/.test(v)&&!/^\d+(?:G|GAL|LB|LBS)$/.test(v)))];
+}
+function matchScore(orderText,t){
+ const parsed=parse(orderText),whole=normalize(orderText),product=normalize(parsed.product);
+ const name=normalize(t.product_name),file=normalize(t.original_filename);
+ const oc=codes(parsed.product),tc=codes(t.original_filename+' '+t.product_name);
+ const codeMatch=oc.some(c=>tc.includes(c));
+ const productWithoutCode=product.replace(/\b(?:h )?bl ?[0-9][a-z0-9]{1,7}\b|\b[0-9][a-z0-9]*[a-z][a-z0-9]*\b/g,'').trim();
+ const titleWithoutCode=name.replace(/\b(?:h )?bl ?[0-9][a-z0-9]{1,7}\b|\b[0-9][a-z0-9]*[a-z][a-z0-9]*\b/g,'').trim();
+ const words=productWithoutCode.split(' ').filter(w=>w.length>2&&!['series','gallon','drum','tote'].includes(w));
+ const nameMatch=productWithoutCode.length>3&&titleWithoutCode.length>3&&(titleWithoutCode===productWithoutCode||titleWithoutCode.includes(productWithoutCode)||productWithoutCode.includes(titleWithoutCode));
+ const wordHits=words.filter(w=>name.split(' ').includes(w)).length;
+ // Do not treat shorthand as an automatic selection: rank it and require a human choice.
+ return (codeMatch?1000:0)+(nameMatch?500:0)+wordHits*25+(product&&name===product?100:0);
+}
 async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;if(!user){location.href='index.html';return}
  const {data:access}=await sb.from('user_page_access').select('admin_orders').eq('user_id',user.id).maybeSingle();
@@ -22,8 +41,8 @@ function renderItems(){const o=current().o;$('item').innerHTML='<option value=""
 function renderTemplates(){
  const {i}=current();if(!i)return;
  const product=normalize(parse(i.item_text).product),query=normalize($('search').value);
- const ranked=templates.map(t=>{const name=normalize(t.product_name),filename=normalize(t.original_filename);let score=0;if(product&&name===product)score=4;else if(product&&(name.includes(product)||product.includes(name)))score=3;else if(product&&filename.includes(product))score=2;return{t,score}}).filter(x=>!query||normalize(x.t.original_filename+' '+x.t.product_name).includes(query)).sort((a,b)=>b.score-a.score||a.t.original_filename.localeCompare(b.t.original_filename));
- $('template').innerHTML='<option value="">Choose original COA…</option>'+ranked.map(({t,score})=>'<option value="'+t.id+'">'+(score?'Suggested • ':'')+esc(t.original_filename)+' ['+esc(t.brand)+']</option>').join('');
+ const ranked=templates.map(t=>({t,score:matchScore(i.item_text,t)})).filter(x=>!query||normalize(x.t.original_filename+' '+x.t.product_name+' '+codes(x.t.original_filename).join(' ')).includes(query)).sort((a,b)=>b.score-a.score||a.t.original_filename.localeCompare(b.t.original_filename));
+ $('template').innerHTML='<option value="">Choose original COA…</option>'+ranked.map(({t,score})=>'<option value="'+t.id+'">'+(score>=1000?'Code match • ':score>=500?'Product match • ':score>0?'Possible match • ':'')+esc(t.original_filename)+' ['+esc(t.brand)+']</option>').join('');
  $('fields').hidden=true;$('status').textContent=ranked.length+' possible templates. Verify the correct version before generating.';
 }
 async function loadSelection(){
