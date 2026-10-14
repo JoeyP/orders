@@ -4,6 +4,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSessio
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 let user,orders=[];
 function line(s){const m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(?:gallons?|gal|g)?\s*\)?\s*(.*)$/i);return m?{qty:m[1],container:m[2],product:m[3]}:{qty:'—',container:'—',product:String(s||'')}}
+function method(o){return o.delivery_method==='bl_neeley'?'B&L Neeley Delivery':o.delivery_method==='lje'?'LJE Shipping':o.delivery_method==='other'?(o.delivery_method_other?'Other — '+o.delivery_method_other:'Other'):'Delivery method not set'}
 function date(s){if(!s)return 'No requested date';const [y,m,d]=s.split('-');return m+'/'+d+'/'+y}
 async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;
@@ -17,7 +18,7 @@ async function init(){
 }
 async function load(){
  $('shippingMessage').textContent='Loading orders…';
- const {data,error}=await sb.from('orders').select('id,customer_name,po_number,po_status,requested_delivery_date,order_text,ready_to_ship,shipped,documents_complete,created_at,updated_at,order_items(item_text,lot_numbers,position)').eq('ready_to_ship',true).order('requested_delivery_date',{ascending:true}).limit(1000);
+ const {data,error}=await sb.from('orders').select('id,customer_name,po_number,po_status,requested_delivery_date,order_text,delivery_method,delivery_method_other,ready_to_ship,shipped,documents_complete,created_at,updated_at,order_items(item_text,lot_numbers,position)').eq('ready_to_ship',true).order('requested_delivery_date',{ascending:true}).limit(1000);
  if(error){$('shippingMessage').textContent='Could not load orders: '+error.message;return}
  orders=data||[];$('shippingMessage').textContent='';render();
 }
@@ -27,14 +28,14 @@ function render(){
  const done=o.shipped||o.documents_complete;
  if(f==='active'&&done)return false;
  if(f==='completed'&&!done)return false;
- return !q||[o.customer_name,o.po_number,o.order_text,o.requested_delivery_date,...(o.order_items||[]).flatMap(i=>[i.item_text,i.lot_numbers])].join(' ').toLowerCase().includes(q);
+ return !q||[o.customer_name,o.po_number,o.order_text,o.requested_delivery_date,o.delivery_method,o.delivery_method_other,...(o.order_items||[]).flatMap(i=>[i.item_text,i.lot_numbers])].join(' ').toLowerCase().includes(q);
  });
  if(f==='completed')list.sort((a,b)=>String(b.updated_at||b.created_at).localeCompare(String(a.updated_at||a.created_at)));
  $('shippingCount').textContent=list.length;
  $('shippingList').innerHTML=list.map(o=>{
  const done=o.shipped||o.documents_complete;
  const items=(o.order_items||[]).sort((a,b)=>a.position-b.position).map(i=>{const p=line(i.item_text);return '<div class="delivery-item"><div class="delivery-item-product">'+esc(p.product)+'</div><div class="delivery-item-detail"><span class="delivery-item-label">Qty</span><strong>'+esc(p.qty)+'</strong></div><div class="delivery-item-detail"><span class="delivery-item-label">Container</span><strong>'+esc(p.container)+'</strong></div><div class="delivery-item-detail delivery-item-lot"><span class="delivery-item-label">Lot</span><strong>'+esc(i.lot_numbers||'—')+'</strong></div></div>'}).join('');
- return '<article class="delivery-order '+(done?'gray':'green')+'"><div class="delivery-order-header"><div class="delivery-order-main"><div class="delivery-order-date">'+esc(date(o.requested_delivery_date))+'</div><div class="delivery-order-customer">'+esc(o.customer_name)+'</div><div class="delivery-order-po">'+esc(o.po_number?'PO: '+o.po_number:o.po_status||'No PO')+'</div></div><div class="delivery-status '+(done?'is-shipped':'is-ready')+'">'+(o.shipped?'SHIPPED':done?'COMPLETE':'READY')+'</div></div><div class="delivery-items">'+(items||'<div class="delivery-no-items">'+esc(o.order_text||'No order items')+'</div>')+'</div><label class="delivery-complete"><input type="checkbox" data-document-order="'+o.id+'" '+(done?'checked':'')+' '+(o.shipped?'disabled':'')+'><span>'+(o.shipped?'Documents Complete (shipped)':'Documents Complete')+'</span></label></article>';
+ return '<article class="delivery-order '+(done?'gray':'green')+'"><div class="delivery-order-header"><div class="delivery-order-main"><div class="delivery-order-date">'+esc(date(o.requested_delivery_date))+'</div><div class="delivery-order-customer">'+esc(o.customer_name)+'</div><div class="delivery-order-po">'+esc(o.po_number?'PO: '+o.po_number:o.po_status||'No PO')+'</div><div class="delivery-order-po">Delivery Method: '+esc(method(o))+'</div></div><div class="delivery-status '+(done?'is-shipped':'is-ready')+'">'+(o.shipped?'SHIPPED':done?'COMPLETE':'READY')+'</div></div><div class="delivery-items">'+(items||'<div class="delivery-no-items">'+esc(o.order_text||'No order items')+'</div>')+'</div><label class="delivery-complete"><input type="checkbox" data-document-order="'+o.id+'" '+(done?'checked':'')+' '+(o.shipped?'disabled':'')+'><span>'+(o.shipped?'Documents Complete (shipped)':'Documents Complete')+'</span></label></article>';
  }).join('')||'<div class="delivery-empty">No orders match this view.</div>';
  $('shippingList').querySelectorAll('[data-document-order]').forEach(cb=>cb.onchange=async()=>{
  const checked=cb.checked;cb.disabled=true;
