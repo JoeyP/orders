@@ -542,8 +542,9 @@ async function deliveriesLoad(){
 }
 async function forecastLoad(){
   const{data,error}=await supabase.from('orders')
-    .select('id,customer_name,po_number,po_status,requested_delivery_date,shipped,order_items(*)')
-    .eq('shipped',false);
+    .select('id,customer_name,po_number,po_status,requested_delivery_date,shipped,ready_to_ship,order_items(*)')
+    .eq('shipped',false)
+    .eq('ready_to_ship',false);
 
   if(error){
     if($('refreshText'))$('refreshText').textContent=error.message;
