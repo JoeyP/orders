@@ -22,7 +22,11 @@ function matchScore(orderText,t){
  const hits=orderWords.filter(w=>templateWords.includes(w)).length;
  const meaningful=orderWords.filter(w=>w.length>=3);
  const nameMatch=meaningful.length>0&&meaningful.every(w=>templateWords.includes(w));
- return (exactCode?1000:0)+(nameMatch?400:0)+hits*35;
+ const orderSizes=[...String(orderText).matchAll(/(?:^|[\s(-])(?:55|275|300)(?=\s*(?:g|gal|gallon|[-)]|\b))/gi)].map(m=>m[0].match(/55|275|300/)[0]);
+ const templateSizes=[...String(t.original_filename).matchAll(/(?:^|[^0-9])(55|275|300)(?=\.|[^0-9]|$)/g)].map(m=>m[1]);
+ const sizeMatch=orderSizes.some(n=>templateSizes.includes(n));
+ const sizeConflict=orderSizes.length>0&&templateSizes.length>0&&!sizeMatch;
+ return (exactCode?1000:0)+(nameMatch?400:0)+hits*35+(sizeMatch?250:0)-(sizeConflict?450:0);
 }
 async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;if(!user){location.href='index.html';return}
