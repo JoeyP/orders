@@ -1,3 +1,4 @@
+import {createCoaPdf} from './coa-pdf.js?v=1';
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
@@ -32,7 +33,7 @@ async function init(){
  orders=o.data||[];templates=t.data||[];
  $('order').innerHTML='<option value="">Select order…</option>'+orders.map(x=>'<option value="'+x.id+'">#'+x.id+' '+esc(x.customer_name)+' — '+esc(x.po_number||'No PO')+'</option>').join('');
  $('order').onchange=renderItems;$('item').onchange=renderTemplates;$('template').onchange=loadSelection;$('save').onclick=save;$('original').onclick=downloadOriginal;
- $('download').onclick=generate;$('search').oninput=renderTemplates;
+ $('download').onclick=()=>pdfAction('download');$('print').onclick=()=>pdfAction('print');$('email').onclick=()=>pdfAction('email');$('search').oninput=renderTemplates;
  $('status').textContent=templates.length+' original COA templates available.';
 }
 function current(){const o=orders.find(x=>String(x.id)===$('order').value),i=o?.order_items?.find(x=>String(x.id)===$('item').value),t=templates.find(x=>String(x.id)===$('template').value);return{o,i,t}}
@@ -51,7 +52,7 @@ async function loadSelection(){
  if(!error&&data&&String(data.template_id)===String(t.id)){selection=data;$('date').value=data.coa_date||$('date').value;$('lot').value=data.lot_numbers??$('lot').value;$('quantity').value=data.quantity??$('quantity').value;$('container').value=data.container_size??$('container').value}
  else selection=null;
  $('chosen').textContent='Original: '+t.original_filename+' ('+t.brand+'). Download the original to check the correct version.';
- $('status').textContent=t.file_extension==='.doc'?'Legacy .doc: original download available; automatic editing requires conversion to .docx.':'DOCX: automatic generation is supported only for templates containing explicit placeholders.';
+ $('status').textContent=t.file_extension==='.doc'?'Legacy .doc: PDF generation is not yet supported for this version. Download original or choose a DOCX version.':'Ready to preview, print, email, or download PDF. Review product specifications in the preview.';
 }
 async function save(){
  const {i,t}=current();if(!i||!t)return alert('Choose an order, product and template.');
@@ -62,25 +63,26 @@ async function originalBlob(){const {t}=current();if(!t)throw Error('Choose a te
 function offer(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000)}
 async function downloadOriginal(){try{const {t}=current();offer(await originalBlob(),t.original_filename)}catch(e){$('status').textContent=e.message}}
 async function getZip(){if(window.JSZip)return window.JSZip;await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';s.onload=res;s.onerror=rej;document.head.append(s)});return window.JSZip}
-async function generate(){
- const {t}=current();if(!t)return alert('Select a template.');
- if(t.file_extension!=='.docx'){$('status').textContent='This is an older .doc file. Automatic editing is not supported; download the original.';return}
+let pdfUrl=null;
+async function pdfAction(action){
+ const {o,i,t}=current();if(!o||!i||!t)return alert('Select an order, product and certificate.');
+ if(t.file_extension!=='.docx')return $('status').textContent='This legacy .doc is not supported yet. Please choose a .docx certificate.';
+ if(!$('lot').value.trim()||!$('quantity').value.trim()||!$('container').value.trim())return alert('Lot number, quantity and container size are required.');
+ $('status').textContent='Generating PDF from original certificate...';
  try{
- const zip=await (await getZip()).loadAsync(await originalBlob());
- const replacements={'{{DATE}}':$('date').value,'{{LOT_NUMBER}}':$('lot').value,'{{QUANTITY}}':$('quantity').value,'{{CONTAINER_SIZE}}':$('container').value};
- let replaced=0;
- for(const name of Object.keys(zip.files).filter(n=>/^word\/(document|header\d+|footer\d+)\.xml$/.test(n))){
-  const xml=await zip.file(name).async('string');let out=xml;
-  for(const [tag,value] of Object.entries(replacements)){
-   const encoded=esc(value);const occurrences=out.split(tag).length-1;if(occurrences){replaced+=occurrences;out=out.split(tag).join(encoded)}
+  const {bytes,data}=await createCoaPdf(await originalBlob(),{lot:$('lot').value.trim(),quantity:$('quantity').value.trim(),container:$('container').value.trim()});
+  const blob=new Blob([bytes],{type:'application/pdf'});
+  if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl=URL.createObjectURL(blob);
+  const filename='COA - '+data.product.replace(/[^a-z0-9 -]/gi,'').slice(0,65)+' - '+$('lot').value.trim().replace(/[^a-z0-9-]/gi,'')+'.pdf';
+  const frame=$('pdfPreview');frame.src=pdfUrl;$('pdfArea').hidden=false;
+  if(action==='download'||action==='email')offer(blob,filename);
+  if(action==='print'){const w=window.open(pdfUrl,'_blank');if(!w)$('status').textContent='PDF preview ready. Allow pop-ups or print from the preview.';}
+  if(action==='email'){
+   const subject='Certificate of Analysis - '+data.product+' - Lot '+$('lot').value.trim();
+   const body='Please find the attached Certificate of Analysis.\n\n(Attach the downloaded PDF before sending.)';
+   location.href='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
   }
-  if(out!==xml)zip.file(name,out);
- }
- if(!replaced){$('status').textContent='This original does not contain editable {{DATE}}, {{LOT_NUMBER}}, {{QUANTITY}}, or {{CONTAINER_SIZE}} placeholders. No altered COA was generated. Original remains available.';return}
- const missing=Object.keys(replacements).filter(tag=>!Object.keys(zip.files).some(()=>false)); // replaced count is not proof all four fields were updated
- if(replaced<4){$('status').textContent='Only '+replaced+' placeholders were found. Generation stopped to prevent an incomplete certificate.';return}
- offer(await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),t.original_filename.replace(/\.docx$/i,'')+' - Order '+current().o.id+'.docx');
- $('status').textContent='Generated Word document. Check all four fields and layout before printing.';
- }catch(e){$('status').textContent='Generation failed: '+e.message}
+  $('status').textContent='PDF generated. Check the preview against the original certificate before sending or printing.'+(action==='email'?' Attach the downloaded PDF in Outlook.':'');
+ }catch(e){$('status').textContent='PDF not generated: '+e.message;console.error(e)}
 }
 init();
