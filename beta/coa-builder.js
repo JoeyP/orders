@@ -17,16 +17,20 @@ function matchScore(orderText,t){
  const parsed=parse(orderText);
  const orderCodes=codes(parsed.product),templateCodes=codes(t.original_filename+' '+t.product_name);
  const exactCode=orderCodes.some(c=>templateCodes.includes(c));
- const orderWords=tokens(parsed.product).filter(w=>!/^\d+[a-z]+$/.test(w));
+ const orderName=normalize(parsed.product);
+ const templateName=normalize(t.product_name+' '+t.original_filename);
+ const orderProductWords=tokens(parsed.product).filter(w=>!/^(\d+|g|gal|gallon|gallons)$/.test(w));
  const templateWords=tokens(t.product_name+' '+t.original_filename);
- const hits=orderWords.filter(w=>templateWords.includes(w)).length;
- const meaningful=orderWords.filter(w=>w.length>=3);
- const nameMatch=meaningful.length>0&&meaningful.every(w=>templateWords.includes(w));
- const orderSizes=[...String(orderText).matchAll(/(?:^|[\s(-])(?:55|275|300)(?=\s*(?:g|gal|gallon|[-)]|\b))/gi)].map(m=>m[0].match(/55|275|300/)[0]);
- const templateSizes=[...String(t.original_filename).matchAll(/(?:^|[^0-9])(55|275|300)(?=\.|[^0-9]|$)/g)].map(m=>m[1]);
- const sizeMatch=orderSizes.some(n=>templateSizes.includes(n));
- const sizeConflict=orderSizes.length>0&&templateSizes.length>0&&!sizeMatch;
- return (exactCode?1000:0)+(nameMatch?400:0)+hits*35+(sizeMatch?250:0)-(sizeConflict?450:0);
+ const productMatches=orderProductWords.filter(w=>templateWords.includes(w));
+ const specificProductMatch=orderProductWords.some(w=>/[a-z]/.test(w)&&w.length>=3&&templateWords.includes(w));
+ const sizeFromOrder=String(orderText).match(/(?:^|[\s(])(?:\d+\s*[-x]?\s*)?(55|275|300)\s*(?:g|gal|gallon|gallons)\b/i);
+ const orderSize=sizeFromOrder?.[1]||'';
+ const templateSize=String(t.original_filename).match(/(?:^|[\s-])(55|275|300)(?=\.[^.]+$|[\s-])/i)?.[1]||'';
+ const sizeMatch=!!orderSize&&orderSize===templateSize;
+ const sizeConflict=!!orderSize&&!!templateSize&&orderSize!==templateSize;
+ // Container size alone must NEVER qualify an unrelated product as a suggestion.
+ if(!exactCode&&!specificProductMatch)return 0;
+ return (exactCode?1000:0)+(specificProductMatch?500:0)+productMatches.length*40+(sizeMatch?200:0)-(sizeConflict?500:0);
 }
 async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;if(!user){location.href='index.html';return}
@@ -46,7 +50,7 @@ function renderTemplates(){
  const {i}=current();if(!i)return;
  const query=normalize($('search').value);
  const ranked=templates.map(t=>({t,score:matchScore(i.item_text,t)})).filter(x=>!query||normalize(x.t.original_filename+' '+x.t.product_name+' '+codes(x.t.original_filename).join(' ')).includes(query)).sort((a,b)=>b.score-a.score||a.t.original_filename.localeCompare(b.t.original_filename));
- const suggested=ranked.filter(x=>x.score>0);$('suggestions').innerHTML=suggested.length?'<strong>Suggested certificates ('+suggested.length+')</strong><div class="small">Highest matching product codes and names first. Click to select:</div>'+suggested.slice(0,8).map(x=>'<button type="button" class="coa-suggestion" data-coa-id="'+x.t.id+'">'+esc(x.t.original_filename)+'</button>').join(' '):'<span class="small">No confident match found. Search all certificates below.</span>';
+ const suggested=ranked.filter(x=>x.score>=500);$('suggestions').innerHTML=suggested.length?'<strong>Suggested certificates ('+suggested.length+')</strong><div class="small">Highest matching product codes and names first. Click to select:</div>'+suggested.slice(0,8).map(x=>'<button type="button" class="coa-suggestion" data-coa-id="'+x.t.id+'">'+esc(x.t.original_filename)+'</button>').join(' '):'<span class="small">No confident match found. Search all certificates below.</span>';
  $('suggestions').querySelectorAll('[data-coa-id]').forEach(btn=>btn.onclick=()=>{$('template').value=btn.dataset.coaId;loadSelection()});
  $('template').innerHTML='<option value="">Choose original COA…</option>'+ranked.map(({t,score})=>'<option value="'+t.id+'">'+(score>=1000?'Code match • ':score>=500?'Product match • ':score>0?'Possible match • ':'')+esc(t.original_filename)+' ['+esc(t.brand)+']</option>').join('');
  $('fields').hidden=true;$('status').textContent=suggested.length+' suggestions; '+ranked.length+' total matching search. Verify the correct version before generating.';
