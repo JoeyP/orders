@@ -1,9 +1,9 @@
-import {createCoaPdf} from './coa-pdf.js?v=3';
+import {structuredPdf} from './coa-structured-pdf.js?v=1';
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-let user,orders=[],templates=[],selection=null;
+let user,orders=[],templates=[],specs=[],selection=null;
 function parse(s){const m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(?:gallons?|gal|g)?\s*\)?\s*(.*)$/i);return m?{quantity:m[1],container:m[2],product:m[3].trim()}:{quantity:'1',container:'',product:String(s||'')}}
 function normalize(s){return String(s||'').toLowerCase().replace(/\.(docx|doc)$/,'').replace(/[^a-z0-9]+/g,' ').trim()}
 // Match product families and abbreviated codes without assuming a unique certificate.
@@ -36,9 +36,9 @@ async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;if(!user){location.href='index.html';return}
  const {data:access}=await sb.from('user_page_access').select('admin_orders').eq('user_id',user.id).maybeSingle();
  if(!access?.admin_orders){$('status').textContent='Admin Orders access required.';return}
- const [o,t]=await Promise.all([sb.from('orders').select('id,customer_name,po_number,requested_delivery_date,order_items(id,item_text,lot_numbers)').order('id',{ascending:false}).limit(1000),sb.from('coa_templates').select('*').eq('active',true).order('original_filename').limit(2000)]);
- if(o.error||t.error){$('status').textContent=o.error?.message||t.error?.message;return}
- orders=o.data||[];templates=t.data||[];
+ const [o,t,sp]=await Promise.all([sb.from('orders').select('id,customer_name,po_number,requested_delivery_date,order_items(id,item_text,lot_numbers)').order('id',{ascending:false}).limit(1000),sb.from('coa_templates').select('*').eq('active',true).order('original_filename').limit(2000),sb.from('coa_template_specs').select('*').limit(2000)]);
+ if(o.error||t.error||sp.error){$('status').textContent=o.error?.message||t.error?.message||sp.error?.message;return}
+ orders=o.data||[];templates=t.data||[];specs=sp.data||[];
  $('order').innerHTML='<option value="">Select order…</option>'+orders.map(x=>'<option value="'+x.id+'">#'+x.id+' '+esc(x.customer_name)+' — '+esc(x.po_number||'No PO')+'</option>').join('');
  $('order').onchange=renderItems;$('item').onchange=renderTemplates;$('template').onchange=loadSelection;$('save').onclick=save;$('original').onclick=downloadOriginal;
  $('download').onclick=()=>pdfAction('download');$('print').onclick=()=>pdfAction('print');$('email').onclick=()=>pdfAction('email');$('search').oninput=renderTemplates;
@@ -62,7 +62,7 @@ async function loadSelection(){
  if(!error&&data&&String(data.template_id)===String(t.id)){selection=data;$('date').value=data.coa_date||$('date').value;$('lot').value=data.lot_numbers??$('lot').value;$('quantity').value=data.quantity??$('quantity').value;$('container').value=data.container_size??$('container').value}
  else selection=null;
  $('chosen').textContent='Original: '+t.original_filename+' ('+t.brand+'). Download the original to check the correct version.';
- $('status').textContent=t.file_extension==='.doc'?'Legacy .doc: PDF generation is not yet supported for this version. Download original or choose a DOCX version.':'Ready to preview, print, email, or download PDF. Review product specifications in the preview.';
+ const spec=specs.find(x=>x.template_id===t.id);$('status').textContent=spec?.extraction_status==='approved'?'Approved specifications available for standardized PDF.':'Specifications not yet approved. Use COA Specifications in Masters to review and approve this certificate.';
 }
 async function save(){
  const {i,t}=current();if(!i||!t)return alert('Choose an order, product and template.');
@@ -76,11 +76,17 @@ async function getZip(){if(window.JSZip)return window.JSZip;await new Promise((r
 let pdfUrl=null;
 async function pdfAction(action){
  const {o,i,t}=current();if(!o||!i||!t)return alert('Select an order, product and certificate.');
- if(t.file_extension!=='.docx')return $('status').textContent='This legacy .doc is not supported yet. Please choose a .docx certificate.';
+ const spec=specs.find(x=>x.template_id===t.id);if(spec?.extraction_status!=='approved')return $('status').textContent='This COA has not been approved in COA Specifications yet. Open the COA Specifications page to review it.';
+ if(t.file_extension!=='.docx')return $('status').textContent='Legacy .doc letterhead is not yet supported for PDF output.';
  if(!$('lot').value.trim()||!$('quantity').value.trim()||!$('container').value.trim())return alert('Lot number, quantity and container size are required.');
  $('status').textContent='Generating PDF from original certificate...';
  try{
-  const {bytes,data}=await createCoaPdf(await originalBlob(),{lot:$('lot').value.trim(),quantity:$('quantity').value.trim(),container:$('container').value.trim()});
+  const original=await originalBlob();const z=await (await getZip()).loadAsync(original);
+  const header=z.file('word/media/image1.png');
+  if(!header)throw Error('Original letterhead image is not available as PNG.');
+  const n=Number($('container').value.trim()),unit=(n===55?'Gallon Drum':n===275||n===300?'Gallon Tote':'Gallon Container');
+  const bytes=await structuredPdf(spec,{lot:$('lot').value.trim(),quantity:$('quantity').value.trim(),container:$('container').value.trim()+' '+unit},await header.async('uint8array'));
+  const data={product:spec.product_name};
   const blob=new Blob([bytes],{type:'application/pdf'});
   if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl=URL.createObjectURL(blob);
   const filename='COA - '+data.product.replace(/[^a-z0-9 -]/gi,'').slice(0,65)+' - '+$('lot').value.trim().replace(/[^a-z0-9-]/gi,'')+'.pdf';
