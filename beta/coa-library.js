@@ -35,7 +35,7 @@ function productName(name){return name.replace(/^.*\//,'').replace(/\.(docx|doc)
 async function pathFor(archive,name){const bytes=new TextEncoder().encode(archive+'|'+name);const digest=await crypto.subtle.digest('SHA-256',bytes);const hash=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');return archive.replace(/[^a-z0-9._-]/gi,'_')+'/'+hash+name.match(/\.(docx|doc)$/i)[0].toLowerCase()}
 async function importFiles(){
  if(importing)return;const files=[...$('archives').files];if(!files.length)return alert('Choose one or both ZIP archives.');
- importing=true;$('importBtn').disabled=true;let done=0,skipped=0,failed=0;
+ importing=true;$('importBtn').disabled=true;let done=0,skipped=0,failed=0,failures=[];
  try{
   for(const archive of files){
    let entries=[];
@@ -54,10 +54,10 @@ async function importFiles(){
      const record={product_name:productName(entry.name),brand:/hawksley/i.test(archive.name)?'Hawksley Laboratories':'B&L Neeley',original_filename:entry.name.split('/').pop(),storage_path:path,file_extension:entry.name.match(/\.(docx|doc)$/i)[0].toLowerCase(),file_size_bytes:blob.size,created_by:user.id};
      const {data,error}=await sb.from('coa_templates').upsert(record,{onConflict:'storage_path'}).select().single();
      if(error)throw error;templates.push(data);done++;
-    }catch(err){failed++;console.error('COA import error',entry.name,err)}
+    }catch(err){failed++;failures.push(entry.name+' — '+(err?.message||String(err)));console.error('COA import error',entry.name,err)}
    }
   }
-  $('progress').textContent='Finished: '+done+' imported, '+skipped+' already present, '+failed+' failed. You can select the ZIPs again to retry failures.';
+  $('progress').textContent='Finished: '+done+' imported, '+skipped+' already present, '+failed+' failed. You can select the ZIPs again to retry failures.'+(failures.length?' Failed files: '+failures.join(' | '):'');
   await refresh();
  }catch(err){$('progress').textContent='Import interrupted: '+err.message}
  finally{importing=false;$('importBtn').disabled=false}
