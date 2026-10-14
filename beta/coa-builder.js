@@ -1,4 +1,4 @@
-import {createCoaPdf} from './coa-pdf.js?v=2';
+import {createCoaPdf} from './coa-pdf.js?v=3';
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
