@@ -1,14 +1,8 @@
 import {PDFDocument,StandardFonts} from 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm';
 const tidy=s=>String(s||'').replace(/\s+/g,' ').trim();
 function joinRuns(parts){
- let out='';
- for(const part of parts){
-  const v=part.textContent||'';
-  if(!v)continue;
-  if(out&&/\w$/.test(out)&&/^\w/.test(v)&&/^\s/.test(v)===false){out+=v;continue}
-  out+=v;
- }
- return tidy(out);
+ // Word's w:t nodes preserve their own intentional spaces. Never insert spaces between runs.
+ return tidy(parts.map(p=>p.textContent||'').join(''));
 }
 function formatSpec(s){
  return tidy(s).replace(/(\d)\s*\.\s*(\d)/g,'$1.$2').replace(/([A-Za-z])\s+([A-Za-z]{2,})/g,(m,a,b)=>a.length===1&&/^[A-Z]/.test(a)?a+b:m).replace(/([<>])\s*(=)\s*/g,'$1$2').replace(/([<>]=?)\s+(\d)/g,'$1$2');
@@ -27,11 +21,11 @@ function linesFrom(xml){
  return [...doc.getElementsByTagName('w:p')].map(p=>joinRuns([...p.getElementsByTagName('w:t')])).filter(Boolean);
 }
 function extract(lines){
- const title=lines.findIndex(x=>/certificate of analysis/i.test(x));
- const lot=lines.findIndex(x=>/^lot number\b/i.test(x));
- const qty=lines.findIndex(x=>/^qty\./i.test(x));
- const spec=lines.findIndex(x=>/physical product specifications/i.test(x));
- if(title<0||lot<0||qty<0||spec<0||!lines[title+1])throw Error('This certificate has an unfamiliar layout. Please use the original.');
+ const title=lines.findIndex(x=>/certificateofanalysis/i.test(x.replace(/\s+/g,'').toLowerCase()));
+ const lot=lines.findIndex(x=>/^lot\s*number\b/i.test(x));
+ const qty=lines.findIndex(x=>/^qty\.?\b/i.test(x));
+ const spec=lines.findIndex(x=>/physical\s*product\s*specifications/i.test(x));
+ if(title<0||lot<0||qty<0||spec<0||!lines[title+1])throw Error('Could not identify COA fields (title '+title+', lot '+lot+', quantity '+qty+', specifications '+spec+').');
  const product=lines.slice(title+1,lot).find(x=>!/^lot number/i.test(x));
  const statement=lines.slice(qty+1,spec).filter(x=>!/^product specifications met/i.test(x)).join(' ');
  const properties=[];
