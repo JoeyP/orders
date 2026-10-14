@@ -6,23 +6,23 @@ const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,
 let user,orders=[],templates=[],selection=null;
 function parse(s){const m=String(s||'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:[-xX×]\s*|\(\s*)?(\d+(?:\.\d+)?)\s*(?:gallons?|gal|g)?\s*\)?\s*(.*)$/i);return m?{quantity:m[1],container:m[2],product:m[3].trim()}:{quantity:'1',container:'',product:String(s||'')}}
 function normalize(s){return String(s||'').toLowerCase().replace(/\.(docx|doc)$/,'').replace(/[^a-z0-9]+/g,' ').trim()}
-// Recognize full BL4NA / H-BL4NA and shorthand 4NA product identifiers.
+// Match product families and abbreviated codes without assuming a unique certificate.
 function codes(s){
  const raw=String(s||'').toUpperCase().replace(/\.(DOCX|DOC)$/,'');
- const matches=[...raw.matchAll(/(?:^|[^A-Z0-9])(?:H[- ]?)?(?:BL[- ]?)?([0-9][A-Z0-9]{1,7})(?=$|[^A-Z0-9])/g)];
- return [...new Set(matches.map(m=>m[1]).filter(v=>/[A-Z]/.test(v)&&!/^\d+(?:G|GAL|LB|LBS)$/.test(v)))];
+ const found=[...raw.matchAll(/(?:^|[^A-Z0-9])(?:H[\s-]*)?(?:BL[\s-]*)?([0-9][A-Z0-9]{1,9})(?=$|[^A-Z0-9])/g)];
+ return [...new Set(found.map(x=>x[1]).filter(x=>/[A-Z]/.test(x)&&!/^\d+(G|GAL|LB|LBS|ML|L)$/.test(x)))];
 }
+function tokens(s){return normalize(s).split(' ').filter(w=>w.length>1&&!['certificate','of','analysis','series','gallon','gallons','drum','tote','pail','product'].includes(w))}
 function matchScore(orderText,t){
- const parsed=parse(orderText),product=normalize(parsed.product);
- const name=normalize(t.product_name);
- const oc=codes(parsed.product),tc=codes(t.original_filename+' '+t.product_name);
- const codeMatch=oc.some(c=>tc.includes(c));
- const strip=s=>s.replace(/\b(?:h )?bl ?[0-9][a-z0-9]{1,7}\b|\b[0-9][a-z0-9]*[a-z][a-z0-9]*\b/g,'').trim();
- const p=strip(product),n=strip(name);
- const nameMatch=p.length>3&&n.length>3&&(n===p||n.includes(p)||p.includes(n));
- const words=p.split(' ').filter(w=>w.length>2&&!['series','gallon','drum','tote'].includes(w));
- const hits=words.filter(w=>name.split(' ').includes(w)).length;
- return (codeMatch?1000:0)+(nameMatch?500:0)+hits*25+(product&&name===product?100:0);
+ const parsed=parse(orderText);
+ const orderCodes=codes(parsed.product),templateCodes=codes(t.original_filename+' '+t.product_name);
+ const exactCode=orderCodes.some(c=>templateCodes.includes(c));
+ const orderWords=tokens(parsed.product).filter(w=>!/^\d+[a-z]+$/.test(w));
+ const templateWords=tokens(t.product_name+' '+t.original_filename);
+ const hits=orderWords.filter(w=>templateWords.includes(w)).length;
+ const meaningful=orderWords.filter(w=>w.length>=3);
+ const nameMatch=meaningful.length>0&&meaningful.every(w=>templateWords.includes(w));
+ return (exactCode?1000:0)+(nameMatch?400:0)+hits*35;
 }
 async function init(){
  const {data:{session}}=await sb.auth.getSession();user=session?.user;if(!user){location.href='index.html';return}
@@ -37,13 +37,15 @@ async function init(){
  $('status').textContent=templates.length+' original COA templates available.';
 }
 function current(){const o=orders.find(x=>String(x.id)===$('order').value),i=o?.order_items?.find(x=>String(x.id)===$('item').value),t=templates.find(x=>String(x.id)===$('template').value);return{o,i,t}}
-function renderItems(){const o=current().o;$('item').innerHTML='<option value="">Select product…</option>'+(o?.order_items||[]).map(i=>'<option value="'+i.id+'">'+esc(i.item_text)+'</option>').join('');$('template').innerHTML='';$('fields').hidden=true}
+function renderItems(){const o=current().o;$('item').innerHTML='<option value="">Select product…</option>'+(o?.order_items||[]).map(i=>'<option value="'+i.id+'">'+esc(i.item_text)+'</option>').join('');$('template').innerHTML='';$('fields').hidden=true;if(o?.order_items?.length===1){$('item').value=String(o.order_items[0].id);renderTemplates()}}
 function renderTemplates(){
  const {i}=current();if(!i)return;
- const product=normalize(parse(i.item_text).product),query=normalize($('search').value);
+ const query=normalize($('search').value);
  const ranked=templates.map(t=>({t,score:matchScore(i.item_text,t)})).filter(x=>!query||normalize(x.t.original_filename+' '+x.t.product_name+' '+codes(x.t.original_filename).join(' ')).includes(query)).sort((a,b)=>b.score-a.score||a.t.original_filename.localeCompare(b.t.original_filename));
+ const suggested=ranked.filter(x=>x.score>0);$('suggestions').innerHTML=suggested.length?'<strong>Suggested certificates ('+suggested.length+')</strong><div class="small">Highest matching product codes and names first. Click to select:</div>'+suggested.slice(0,8).map(x=>'<button type="button" class="coa-suggestion" data-coa-id="'+x.t.id+'">'+esc(x.t.original_filename)+'</button>').join(' '):'<span class="small">No confident match found. Search all certificates below.</span>';
+ $('suggestions').querySelectorAll('[data-coa-id]').forEach(btn=>btn.onclick=()=>{$('template').value=btn.dataset.coaId;loadSelection()});
  $('template').innerHTML='<option value="">Choose original COA…</option>'+ranked.map(({t,score})=>'<option value="'+t.id+'">'+(score>=1000?'Code match • ':score>=500?'Product match • ':score>0?'Possible match • ':'')+esc(t.original_filename)+' ['+esc(t.brand)+']</option>').join('');
- $('fields').hidden=true;$('status').textContent=ranked.length+' possible templates. Verify the correct version before generating.';
+ $('fields').hidden=true;$('status').textContent=suggested.length+' suggestions; '+ranked.length+' total matching search. Verify the correct version before generating.';
 }
 async function loadSelection(){
  const {i,t}=current();$('fields').hidden=!t;if(!t||!i)return;
