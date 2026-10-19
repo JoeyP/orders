@@ -332,7 +332,7 @@ function itemRows(o,editable=true,includeBlend=false){
         type="checkbox"
         data-blend-item="${i.id}"
         ${i.requires_blending?'checked':''}
-        ${o.shipped?'disabled':''}
+        ${(o.shipped||o.ready_to_ship)?'disabled':''}
         aria-label="Blend ${esc(p.item||i.item_text)}"></div>`:''}
     </div>`;
   }).join('');
@@ -343,6 +343,8 @@ async function changeTracker(e){
 
   if(t.dataset.blendItem){
     const id=t.dataset.blendItem;
+    const parent=orders.find(o=>(o.order_items||[]).some(i=>String(i.id)===String(id)));
+    if(parent?.ready_to_ship||parent?.shipped){t.checked=!t.checked;alert('Unmark Ready before changing Blend on this order.');return;}
     const checked=t.checked;
     t.disabled=true;
 
@@ -428,9 +430,9 @@ async function trackerLoad(){
       <td class="items${page==='desktop'?' admin-items':''}">
         <div class="item-head${page==='desktop'?' admin-item-head':''}">
           <div>${(page==='tracker'||page==='desktop')?'':'Qty'}</div><div>${(page==='tracker'||page==='desktop')?'':'Container'}</div><div>${(page==='tracker'||page==='desktop')?'':'Item'}</div><div>${(page==='desktop'||page==='tracker')?'':'Lot Number(s)'}</div>
-          ${page==='desktop'?'<div class="inline-blend-head"></div>':''}
+          ${(page==='desktop'||page==='tracker')?'<div class="inline-blend-head"></div>':''}
         </div>
-        ${itemRows(o,true,page==='desktop')}
+        ${itemRows(o,true,page==='desktop'||page==='tracker')}
       </td>
       <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
