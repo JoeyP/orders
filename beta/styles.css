@@ -874,3 +874,20 @@ body[data-page="desktop"] .admin-item-head{display:none!important}
 @media(max-width:1050px){.doc-builder-grid{grid-template-columns:1fr}.doc-preview{padding:8px}.docs-form{grid-template-columns:1fr 1fr}.bol-map-row{grid-template-columns:1fr}}
 @media(max-width:600px){.docs-form{grid-template-columns:1fr}.master-counts{grid-template-columns:1fr}.master-row{grid-template-columns:1fr}.print-doc{padding:22px}.bol-head{grid-template-columns:1fr}}
 @media print{body{background:#fff}.top,.panel,.doc-builder-grid>.panel,.login{display:none!important}.wrap{max-width:none;padding:0}.doc-builder-grid{display:block}.doc-preview{padding:0;background:#fff}.print-doc{box-shadow:none;max-width:none;padding:.35in}.links{display:none!important}}
+
+/* Beta only: let Admin Orders use the available widescreen area. */
+@media (min-width: 900px) {
+  body[data-page="desktop"] .wrap:not(.narrow) {
+    max-width: none;
+    width: 100%;
+    padding-left: clamp(12px, 1vw, 24px);
+    padding-right: clamp(12px, 1vw, 24px);
+  }
+  body[data-page="desktop"] .tablewrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  body[data-page="desktop"] .tablewrap table {
+    width: 100%;
+  }
+}
