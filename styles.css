@@ -868,3 +868,16 @@ body[data-page="desktop"] .admin-item-head{display:none!important}
 
 .entered-by{margin-top:3px;font-size:11px;font-weight:400;color:#667085;line-height:1.25;white-space:normal}
 .mobile-entered-by{margin-top:12px}
+
+/* Warehouse Order Tracker: per-product Blend checkbox */
+body[data-page="tracker"] .tracker-order-head{min-width:575px}
+body[data-page="tracker"] .tracker-fixed-item-head,
+body[data-page="tracker"] .item-row.admin-item-row{
+  grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px) 62px!important;
+}
+body[data-page="tracker"] .inline-blend{
+  display:flex;align-items:center;justify-content:center;align-self:stretch;
+}
+body[data-page="tracker"] .inline-blend input{
+  width:21px!important;height:21px!important;margin:0!important;
+}
