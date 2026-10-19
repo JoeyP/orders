@@ -881,3 +881,20 @@ body[data-page="tracker"] .inline-blend{
 body[data-page="tracker"] .inline-blend input{
   width:21px!important;height:21px!important;margin:0!important;
 }
+
+/* Admin Orders: full-width widescreen layout. */
+@media (min-width: 900px) {
+  body[data-page="desktop"] .wrap:not(.narrow) {
+    max-width: none;
+    width: 100%;
+    padding-left: clamp(12px, 1vw, 24px);
+    padding-right: clamp(12px, 1vw, 24px);
+  }
+  body[data-page="desktop"] .tablewrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  body[data-page="desktop"] .tablewrap table {
+    width: 100%;
+  }
+}
