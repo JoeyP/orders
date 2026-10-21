@@ -56,8 +56,15 @@ function dayPacific(offset=0){
  const d=new Date(Date.now()+offset*86400000);
  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 }
-function dateStart(day){return new Date(day+'T00:00:00-07:00').toISOString()}
-function dateEnd(day){return new Date(new Date(day+'T12:00:00Z').getTime()+86400000).toISOString().slice(0,10)}
+function pacificMidnight(day){
+ const utc=Date.parse(day+'T00:00:00Z');
+ const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',timeZoneName:'shortOffset',hour:'2-digit'});
+ const zone=fmt.formatToParts(new Date(utc)).find(p=>p.type==='timeZoneName')?.value||'GMT-8';
+ const m=zone.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+ const minutes=m?(m[1]==='+'?1:-1)*(Number(m[2])*60+Number(m[3]||0)):-480;
+ return new Date(utc-minutes*60000).toISOString();
+}
+function nextDay(day){const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)}
 function setupActivity(){
  const open=which=>{
   const activity=which==='activity';
@@ -101,11 +108,11 @@ async function loadActivity(more){
   const dateFilter=$('activityDates').value;
   if(dateFilter==='today'||dateFilter==='yesterday'){
    const d=dayPacific(dateFilter==='today'?0:-1);
-   req=req.gte('changed_at',new Date(d+'T00:00:00-07:00').toISOString()).lt('changed_at',new Date(new Date(d+'T12:00:00Z').getTime()+86400000).toISOString());
+   req=req.gte('changed_at',pacificMidnight(d)).lt('changed_at',pacificMidnight(nextDay(d)));
   }else if(dateFilter==='7')req=req.gte('changed_at',new Date(Date.now()-7*86400000).toISOString());
   else if(dateFilter==='custom'){
-   if($('activityFrom').value)req=req.gte('changed_at',new Date($('activityFrom').value+'T00:00:00-07:00').toISOString());
-   if($('activityTo').value)req=req.lt('changed_at',new Date(new Date($('activityTo').value+'T12:00:00Z').getTime()+86400000).toISOString());
+   if($('activityFrom').value)req=req.gte('changed_at',pacificMidnight($('activityFrom').value));
+   if($('activityTo').value)req=req.lt('changed_at',pacificMidnight(nextDay($('activityTo').value)));
   }
   const {data,error}=await req;if(error)throw error;if(token!==activityToken)return;
   const events=data||[],orderIds=[...new Set(events.map(e=>e.order_id).filter(Boolean))];
