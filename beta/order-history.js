@@ -89,7 +89,7 @@ async function activityQuery(from,to){
   const safe=query.replace(/[%_,()]/g,' ').trim();
   if(!safe)throw Error('Enter a customer, PO, or order number.');
   let match=sb.from('orders').select('id').limit(1000);
-  if(/^\\d+$/.test(query))match=match.or('id.eq.'+Number(query)+',po_number.ilike.%'+safe+'%,customer_name.ilike.%'+safe+'%');
+  if(/^\d+$/.test(query))match=match.or('id.eq.'+Number(query)+',po_number.ilike.%'+safe+'%,customer_name.ilike.%'+safe+'%');
   else match=match.or('customer_name.ilike.%'+safe+'%,po_number.ilike.%'+safe+'%');
   const res=await match;if(res.error)throw res.error;
   ids=(res.data||[]).map(o=>o.id);
@@ -111,7 +111,7 @@ async function activityQuery(from,to){
  }
  const {data,error}=await req;if(error)throw error;return data||[];
 }
-const csvCell=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^[=+@\\-]/,'\'$&')+'"';
+const csvCell=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^[=+@-]/,m=>'\t'+m)+'"';
 async function exportActivity(){
  const button=$('activityExport');button.disabled=true;
  const original=button.textContent;button.textContent='Preparing CSV…';
