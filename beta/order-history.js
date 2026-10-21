@@ -80,7 +80,66 @@ function setupActivity(){
  }));
  $('activitySearch').addEventListener('input',refresh);
  $('activityRefresh').onclick=()=>loadActivity(false);
- $('activityMore').onclick=()=>loadActivity(true);
+ $('activityMore').onclick=()=>loadActivity(true);$('activityExport').onclick=exportActivity;
+}
+async function activityQuery(from,to){
+ const query=$('activitySearch').value.trim();
+ let ids=null;
+ if(query){
+  const safe=query.replace(/[%_,()]/g,' ').trim();
+  if(!safe)throw Error('Enter a customer, PO, or order number.');
+  let match=sb.from('orders').select('id').limit(1000);
+  if(/^\\d+$/.test(query))match=match.or('id.eq.'+Number(query)+',po_number.ilike.%'+safe+'%,customer_name.ilike.%'+safe+'%');
+  else match=match.or('customer_name.ilike.%'+safe+'%,po_number.ilike.%'+safe+'%');
+  const res=await match;if(res.error)throw res.error;
+  ids=(res.data||[]).map(o=>o.id);
+  if(!ids.length)return [];
+ }
+ let req=sb.from('order_change_log').select('id,order_id,item_id,entity_type,action,changed_at,changed_by_email,old_values,new_values')
+   .order('changed_at',{ascending:false}).order('id',{ascending:false}).range(from,to);
+ if(ids)req=req.in('order_id',ids);
+ if($('activityUser').value)req=req.eq('changed_by_email',$('activityUser').value);
+ if($('activityAction').value)req=req.eq('action',$('activityAction').value);
+ const dateFilter=$('activityDates').value;
+ if(dateFilter==='today'||dateFilter==='yesterday'){
+  const d=dayPacific(dateFilter==='today'?0:-1);
+  req=req.gte('changed_at',pacificMidnight(d)).lt('changed_at',pacificMidnight(nextDay(d)));
+ }else if(dateFilter==='7')req=req.gte('changed_at',new Date(Date.now()-7*86400000).toISOString());
+ else if(dateFilter==='custom'){
+  if($('activityFrom').value)req=req.gte('changed_at',pacificMidnight($('activityFrom').value));
+  if($('activityTo').value)req=req.lt('changed_at',pacificMidnight(nextDay($('activityTo').value)));
+ }
+ const {data,error}=await req;if(error)throw error;return data||[];
+}
+const csvCell=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^[=+@\\-]/,'\'$&')+'"';
+async function exportActivity(){
+ const button=$('activityExport');button.disabled=true;
+ const original=button.textContent;button.textContent='Preparing CSV…';
+ try{
+  const all=[];const max=20000;
+  for(let offset=0;offset<max;offset+=500){
+   const batch=await activityQuery(offset,offset+499);
+   all.push(...batch);button.textContent='Preparing CSV… '+all.length;
+   if(batch.length<500)break;
+  }
+  const ids=[...new Set(all.map(e=>e.order_id).filter(Boolean))],orderMap=new Map();
+  for(let i=0;i<ids.length;i+=250){
+   const {data,error}=await sb.from('orders').select('id,customer_name,po_number').in('id',ids.slice(i,i+250));
+   if(error)throw error;(data||[]).forEach(o=>orderMap.set(o.id,o));
+  }
+  const header=['Date & Time (Pacific)','User','Order #','Customer','PO','Action','Record Type','Item ID','Changes','Event ID'];
+  const rows=all.map(ev=>{
+   const o=orderMap.get(ev.order_id),old=ev.old_values||{},next=ev.new_values||{};
+   const changed=[...new Set([...Object.keys(old),...Object.keys(next)])].filter(k=>!ignored.has(k)&&JSON.stringify(old[k])!==JSON.stringify(next[k]));
+   const details=ev.action==='insert'?'Record created'+(next.item_text?': '+next.item_text:''):ev.action==='delete'?'Record deleted'+(old.item_text?': '+old.item_text:''):changed.map(k=>(names[k]||k)+': '+display(old[k])+' -> '+display(next[k])).join(' | ')||'Metadata-only update';
+   return [pacific(ev.changed_at),ev.changed_by_email||'Unknown',ev.order_id,o?.customer_name||'',o?.po_number||'',ev.action,ev.entity_type,ev.item_id||'',details,ev.id];
+  });
+  const csv='\uFEFF'+[header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='order-activity-'+dayPacific()+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+  $('activityStatus').textContent='Exported '+rows.length+' matching activity records.'+(rows.length===max?' Export limited to 20,000 records; narrow the date filters for older activity.':'');
+ }catch(e){$('activityStatus').textContent='CSV export failed: '+e.message}
+ finally{button.disabled=false;button.textContent=original}
 }
 async function loadActivity(more){
  if(activityBusy&&more)return;
@@ -88,33 +147,7 @@ async function loadActivity(more){
  if(!more){activityOffset=0;$('activityEntries').innerHTML=''}
  $('activityStatus').textContent='Loading activity…';$('activityMore').hidden=true;
  try{
-  const query=$('activitySearch').value.trim();
-  let ids=null;
-  if(query){
-   const safe=query.replace(/[%_,()]/g,' ').trim();
-   if(!safe){$('activityStatus').textContent='Enter a customer, PO, or order number.';return}
-   let match=sb.from('orders').select('id').limit(1000);
-   if(/^\d+$/.test(query))match=match.or('id.eq.'+Number(query)+',po_number.ilike.%'+safe+'%,customer_name.ilike.%'+safe+'%');
-   else match=match.or('customer_name.ilike.%'+safe+'%,po_number.ilike.%'+safe+'%');
-   const res=await match;if(res.error)throw res.error;
-   ids=(res.data||[]).map(o=>o.id);
-   if(!ids.length){$('activityStatus').textContent='No matching orders.';return}
-  }
-  let req=sb.from('order_change_log').select('id,order_id,item_id,entity_type,action,changed_at,changed_by_email,old_values,new_values')
-    .order('changed_at',{ascending:false}).order('id',{ascending:false}).range(activityOffset,activityOffset+99);
-  if(ids)req=req.in('order_id',ids);
-  if($('activityUser').value)req=req.eq('changed_by_email',$('activityUser').value);
-  if($('activityAction').value)req=req.eq('action',$('activityAction').value);
-  const dateFilter=$('activityDates').value;
-  if(dateFilter==='today'||dateFilter==='yesterday'){
-   const d=dayPacific(dateFilter==='today'?0:-1);
-   req=req.gte('changed_at',pacificMidnight(d)).lt('changed_at',pacificMidnight(nextDay(d)));
-  }else if(dateFilter==='7')req=req.gte('changed_at',new Date(Date.now()-7*86400000).toISOString());
-  else if(dateFilter==='custom'){
-   if($('activityFrom').value)req=req.gte('changed_at',pacificMidnight($('activityFrom').value));
-   if($('activityTo').value)req=req.lt('changed_at',pacificMidnight(nextDay($('activityTo').value)));
-  }
-  const {data,error}=await req;if(error)throw error;if(token!==activityToken)return;
+  const data=await activityQuery(activityOffset,activityOffset+99);if(token!==activityToken)return;
   const events=data||[],orderIds=[...new Set(events.map(e=>e.order_id).filter(Boolean))];
   const {data:orders,error:orderError}=orderIds.length?await sb.from('orders').select('id,customer_name,po_number').in('id',orderIds):{data:[]};
   if(orderError)throw orderError;
