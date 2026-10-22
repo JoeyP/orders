@@ -1042,8 +1042,18 @@ function openEditOrder(id){
     const old=(o.order_items||[]).find(i=>Number(i.id)===id);
     if(old?.back_ordered){
       t.disabled=true;
-      if(await setBackorder(o,[id],false)){closeEditModal();await refreshCurrentPage()}
-      else t.disabled=false;
+      const saved=await setBackorder(o,[id],false);
+      t.disabled=false;
+      if(saved){
+        old.back_ordered=false;
+        o.back_ordered=(o.order_items||[]).some(item=>item.back_ordered);
+        const badge=t.closest('.edit-item-bottom')?.querySelector('.bo-marked');
+        if(badge)badge.remove();
+        const cached=orders.find(order=>String(order.id)===String(o.id));
+        if(cached)cached.back_ordered=o.back_ordered;
+      }else{
+        t.checked=true;
+      }
     }
   };
   $('editError').className='edit-save-status';
