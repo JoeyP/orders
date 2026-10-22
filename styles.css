@@ -869,20 +869,13 @@ body[data-page="desktop"] .admin-item-head{display:none!important}
 .entered-by{margin-top:3px;font-size:11px;font-weight:400;color:#667085;line-height:1.25;white-space:normal}
 .mobile-entered-by{margin-top:12px}
 
-/* Warehouse Order Tracker: per-product Blend checkbox */
-body[data-page="tracker"] .tracker-order-head{min-width:575px}
-body[data-page="tracker"] .tracker-fixed-item-head,
-body[data-page="tracker"] .item-row.admin-item-row{
-  grid-template-columns:55px 95px minmax(180px,1fr) minmax(145px,190px) 62px!important;
-}
-body[data-page="tracker"] .inline-blend{
-  display:flex;align-items:center;justify-content:center;align-self:stretch;
-}
-body[data-page="tracker"] .inline-blend input{
-  width:21px!important;height:21px!important;margin:0!important;
-}
+/* Beta COA / BOL document tools */
+.doc-builder-grid{display:grid;grid-template-columns:minmax(380px,.85fr) minmax(520px,1.15fr);gap:16px;align-items:start}.doc-preview{background:#d9dde3;border-radius:14px;padding:18px;min-height:500px}.print-doc{background:#fff;color:#111;max-width:850px;margin:auto;padding:42px;box-shadow:0 4px 18px rgba(0,0,0,.15);font-family:Arial,sans-serif}.coa-doc h1{text-align:center;font-size:28px;margin-bottom:34px}.coa-doc h2{font-size:20px;border-bottom:2px solid #111;padding-bottom:8px}.coa-doc h2 span{float:right;font-size:14px}.coa-doc p{line-height:1.5}.spec-table{min-width:0;width:100%;margin-top:12px}.spec-table td{padding:8px;border-bottom:1px solid #ddd}.spec-table td:first-child{font-weight:700;width:45%}.doc-foot{margin-top:50px;font-size:11px;color:#666}.doc-line,.bol-map-row{border:1px solid var(--border);border-radius:10px;padding:10px;margin:9px 0;background:#fafafa}.doc-line select{width:100%;margin:6px 0}.doc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.order-picker{max-height:250px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:6px}.order-pick{display:flex!important;gap:8px;align-items:flex-start;padding:8px;margin:0!important;border-bottom:1px solid #eee;font-weight:400}.order-pick input{margin-top:3px}.order-pick span{display:flex;flex-direction:column}.order-pick small{color:var(--muted);margin-top:2px}.docs-form{grid-template-columns:1fr 1fr 1fr;margin-top:8px}.docs-form label{margin:0}.docs-form input,.docs-form select{width:100%}.doc-checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bol-map-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}.bol-map-row div{display:flex;flex-direction:column}.bol-map-row small{color:var(--muted);margin-top:3px}.bol-title{text-align:center;font-size:17px;font-weight:800;border-bottom:2px solid #111;padding-bottom:8px}.bol-head{display:grid;grid-template-columns:1fr 1fr;gap:30px;padding:14px 0;border-bottom:1px solid #555;line-height:1.45}.bol-table{min-width:0;width:100%;margin-top:18px}.bol-table th,.bol-table td{border:1px solid #555;padding:7px;position:static;background:#fff}.bol-table th{font-size:11px}.bol-note{font-size:10px;margin-top:18px}.master-counts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}.stat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column}.stat b{font-size:28px}.stat span{text-transform:capitalize;color:var(--muted)}.master-row{display:grid;grid-template-columns:minmax(180px,.7fr) 1.3fr;gap:14px;padding:10px 4px;border-bottom:1px solid #eee}.master-row span{font-size:12px;color:#555}.notice{padding:10px 12px;border:1px solid #d8dee8;border-radius:9px;background:#f8fafc;margin:10px 0;font-size:13px}
+@media(max-width:1050px){.doc-builder-grid{grid-template-columns:1fr}.doc-preview{padding:8px}.docs-form{grid-template-columns:1fr 1fr}.bol-map-row{grid-template-columns:1fr}}
+@media(max-width:600px){.docs-form{grid-template-columns:1fr}.master-counts{grid-template-columns:1fr}.master-row{grid-template-columns:1fr}.print-doc{padding:22px}.bol-head{grid-template-columns:1fr}}
+@media print{body{background:#fff}.top,.panel,.doc-builder-grid>.panel,.login{display:none!important}.wrap{max-width:none;padding:0}.doc-builder-grid{display:block}.doc-preview{padding:0;background:#fff}.print-doc{box-shadow:none;max-width:none;padding:.35in}.links{display:none!important}}
 
-/* Admin Orders: full-width widescreen layout. */
+/* Beta only: let Admin Orders use the available widescreen area. */
 @media (min-width: 900px) {
   body[data-page="desktop"] .wrap:not(.narrow) {
     max-width: none;
@@ -897,4 +890,48 @@ body[data-page="tracker"] .inline-blend input{
   body[data-page="desktop"] .tablewrap table {
     width: 100%;
   }
+}
+
+/* Beta per-item backorder controls and touch-friendly choice dialog */
+body[data-page="desktop"] .item-row.admin-item-row,body[data-page="desktop"] .item-head.admin-item-head,body[data-page="tracker"] .item-row.admin-item-row,body[data-page="tracker"] .item-head{grid-template-columns:48px 76px minmax(130px,1fr) minmax(110px,170px) 65px 85px!important;gap:5px!important}
+body[data-page="desktop"] .admin-fixed-item-head,body[data-page="tracker"] .tracker-fixed-item-head{grid-template-columns:48px 76px minmax(130px,1fr) minmax(110px,170px) 65px 85px!important;gap:5px!important}
+body[data-page="desktop"] .inline-blend,body[data-page="tracker"] .inline-blend{display:flex;align-items:center;justify-content:center}
+body[data-page="desktop"] .inline-blend input,body[data-page="tracker"] .inline-blend input{width:21px;height:21px}
+.bo-overlay{position:fixed;inset:0;background:rgba(10,25,40,.62);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}
+.bo-dialog{background:white;border-radius:14px;padding:24px;max-width:480px;width:100%;box-shadow:0 12px 40px #0004}
+.bo-dialog h3{margin:0 0 10px}.bo-dialog p{line-height:1.5}
+.bo-buttons{display:flex;flex-direction:column;gap:10px;margin-top:18px}.bo-buttons button{padding:13px;min-height:46px;border-radius:8px}
+#splitEditBackorders{margin:10px 0;padding:11px;width:100%}
+#editLots .edit-lot-row{gap:8px;align-items:center}
+#editLots .edit-lot-row .check{white-space:nowrap}
+@media(max-width:750px){body[data-page="desktop"] .item-row.admin-item-row,body[data-page="tracker"] .item-row.admin-item-row{min-width:540px}#editLots .edit-lot-row{display:flex;flex-wrap:wrap}#editLots .edit-lot-row>div{width:100%}}
+
+/* Beta 3.6.42 — consistent item editor on phone and desktop */
+#editLots .edit-lots{padding:0 12px}
+#editLots .edit-lot-row{display:block!important;padding:14px 0!important;border-bottom:1px solid #e3e8ef}
+#editLots .edit-lot-row:last-child{border-bottom:0}
+#editLots .edit-item-top{display:flex!important;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;width:100%}
+#editLots .edit-item-top strong{flex:1 1 180px;min-width:0}
+#editLots .edit-item-top input{flex:0 1 220px;width:100%;max-width:240px;min-width:135px;margin:0}
+#editLots .edit-item-bottom{display:flex!important;flex-wrap:wrap;gap:10px;align-items:center;width:100%;margin-top:8px}
+#editLots .edit-item-bottom .check{display:inline-flex!important;align-items:center;gap:7px;margin:0!important;padding:7px 10px!important;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc;white-space:nowrap;width:auto!important;min-height:38px;font-size:12px}
+#editLots .edit-qty-label{display:flex;align-items:center;gap:7px;margin:0!important;font-size:12px;color:#475569}
+#editLots .edit-qty-label input{width:65px!important;min-width:65px;padding:7px!important;height:38px}
+#editLots .bo-marked{font-size:11px;color:#9a3412}
+.bo-edit-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.bo-edit-actions button,#splitEditBackorders{width:100%!important;min-height:46px!important;margin:0!important;padding:10px 12px!important;border:1px solid #cbd5e1;border-radius:9px;font-size:13px}
+.bo-edit-actions .primary{background:#1e3a6d;color:#fff;border-color:#1e3a6d}
+.bo-quantity-row{border:1px solid #e2e8f0;border-radius:9px;padding:12px;margin:10px 0}
+.bo-quantity-row strong{display:block;overflow-wrap:anywhere}
+.bo-quantity-row label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 5px}
+.bo-quantity-row input{width:85px;min-width:85px;height:42px;padding:6px}
+.bo-quantity-row small{color:#64748b}
+.bo-error{color:#b91c1c;font-size:12px}
+body[data-page="desktop"] #body>tr>td,body[data-page="tracker"] #body>tr>td{border-bottom:0!important;border-top:1px solid #d1d5db!important}
+body[data-page="desktop"] #body>tr:first-child>td,body[data-page="tracker"] #body>tr:first-child>td{border-top:0!important}
+@media(max-width:650px){
+ #editLots .edit-item-top{display:grid!important;grid-template-columns:1fr}
+ #editLots .edit-item-top input{max-width:none;width:100%}
+ .bo-edit-actions{grid-template-columns:1fr}
+ .bo-dialog{padding:18px;max-height:calc(100dvh - 32px);overflow:auto}
 }
