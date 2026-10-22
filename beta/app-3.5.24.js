@@ -535,7 +535,7 @@ async function trackerLoad(){
         </div>
         ${itemRows(o,true,true)}
       </td>
-      <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
+
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
       ${page==='desktop'?`
         <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
