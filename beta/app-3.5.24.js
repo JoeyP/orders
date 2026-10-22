@@ -968,7 +968,7 @@ function ensureEditModal(){
       <label>Order <span class="small">(one item per line)</span></label>
       <textarea id="editOrderText" rows="7" required></textarea>
 
-      <div id="editLots"></div><div class="bo-edit-actions"><button type="button" id="keepEditBackorders" class="secondary">Keep Selected in Order</button><button type="button" id="splitEditBackorders" class="primary">Split Selected Into New Order</button></div>
+      <div id="editLots"></div>
 
       <div class="edit-status-grid">
         <label class="check"><input id="editReady" type="checkbox"> Ready</label>
@@ -993,8 +993,6 @@ function ensureEditModal(){
   setupPo('edit');
   setupDelivery('edit');
   $('editPickup').addEventListener('change',()=>{if($('editPickup').value)$('editScheduled').checked=true});
-  $('splitEditBackorders').onclick=splitFromEdit;
-  $('keepEditBackorders').onclick=keepFromEdit;
   $('editScheduled').addEventListener('change',()=>{if(!$('editScheduled').checked)$('editPickup').value=''});
 }
 function closeEditModal(){
@@ -1006,7 +1004,6 @@ function renderEditLots(o){
   box.innerHTML='<label>Order Items &amp; Lot Numbers</label><div class="edit-lots">'
     +(o.order_items||[]).map((i,idx)=>`<div class="edit-lot-row">
       <div class="edit-item-top"><strong>${esc(i.item_text)}</strong><input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)" aria-label="Lot numbers for ${esc(i.item_text)}"></div>
-      <div class="edit-item-bottom"><label class="check"><input type="checkbox" data-edit-back-item="${i.id}" ${i.back_ordered?'checked':''}> Backorder</label><label class="edit-qty-label">Backorder Qty <input type="number" min="1" max="${lineQuantity(i)||1}" step="1" inputmode="numeric" data-edit-bo-qty="${i.id}" value="${lineQuantity(i)||1}"></label>${i.back_ordered?'<span class="bo-marked">Backordered · uncheck to clear</span>':''}</div>
     </div>`).join('')
     +'</div>';
 }
@@ -1031,28 +1028,6 @@ function openEditOrder(id){
   $('editPickup').value=o.scheduled_pickup_date||'';
 
   renderEditLots(o);
-  $('editLots').onchange=async e=>{
-    const t=e.target;
-    if(!t.matches('[data-edit-back-item]'))return;
-    if(t.checked)return; // New selections are applied together with the buttons below.
-    const id=Number(t.dataset.editBackItem);
-    const old=(o.order_items||[]).find(i=>Number(i.id)===id);
-    if(old?.back_ordered){
-      t.disabled=true;
-      const saved=await setBackorder(o,[id],false);
-      t.disabled=false;
-      if(saved){
-        old.back_ordered=false;
-        o.back_ordered=(o.order_items||[]).some(item=>item.back_ordered);
-        const badge=t.closest('.edit-item-bottom')?.querySelector('.bo-marked');
-        if(badge)badge.remove();
-        const cached=orders.find(order=>String(order.id)===String(o.id));
-        if(cached)cached.back_ordered=o.back_ordered;
-      }else{
-        t.checked=true;
-      }
-    }
-  };
   $('editError').className='edit-save-status';
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
