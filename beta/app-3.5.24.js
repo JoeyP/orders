@@ -340,7 +340,7 @@ function itemRows(o,editable=true,includeBlend=false){
 
 
 function lineQuantity(item){
- const match=String(item.item_text||'').trim().match(/^([0-9]+)(?=\\s|[-xX×(]|$)/);
+ const match=String(item.item_text||'').trim().match(/^([0-9]+)(?=\s|[-xX×(]|$)/);
  return match?Number(match[1]):null;
 }
 async function setBackorder(o,ids,checked){
