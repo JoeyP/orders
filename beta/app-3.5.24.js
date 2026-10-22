@@ -849,7 +849,7 @@ async function newOrderSubmit(e){
       ...delivery,
       requested_delivery_date:$('date').value||null,
       order_text:lines.join('\n'),
-      back_ordered:$('backOrdered').checked,
+      back_ordered:false,
       ready_to_ship:false,
       scheduled:false,
       scheduled_pickup_date:null,
