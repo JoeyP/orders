@@ -475,13 +475,12 @@ async function changeTracker(e){
     return;
   }
 
-  const id=t.dataset.back||t.dataset.ready||t.dataset.scheduled||t.dataset.pickup||t.dataset.shipped;
+  const id=t.dataset.ready||t.dataset.scheduled||t.dataset.pickup||t.dataset.shipped;
   if(!id)return;
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o)return;
 
   const patch={updated_by:user.id,updated_by_email:user.email||null};
-  if(t.dataset.back)patch.back_ordered=t.checked;
 
   if(t.dataset.ready){
     if(t.checked){
@@ -972,7 +971,6 @@ function ensureEditModal(){
       <div id="editLots"></div><div class="bo-edit-actions"><button type="button" id="keepEditBackorders" class="secondary">Keep Selected in Order</button><button type="button" id="splitEditBackorders" class="primary">Split Selected Into New Order</button></div>
 
       <div class="edit-status-grid">
-        <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
         <label class="check"><input id="editReady" type="checkbox"> Ready</label>
         <label class="check"><input id="editScheduled" type="checkbox"> Scheduled</label>
         <label class="check"><input id="editShipped" type="checkbox"> Shipped</label>
@@ -1027,7 +1025,6 @@ function openEditOrder(id){
   $('editDeliveryOther').value=o.delivery_method_other||'';
   setupDelivery('edit');
   $('editOrderText').value=(o.order_items||[]).map(i=>i.item_text).join('\n')||o.order_text||'';
-  $('editBack').checked=!!o.back_ordered;
   $('editReady').checked=!!o.ready_to_ship;
   $('editScheduled').checked=!!o.scheduled;
   $('editShipped').checked=!!o.shipped;
@@ -1153,7 +1150,7 @@ async function saveEditOrder(e){
     ...delivery,
     requested_delivery_date:$('editDate').value||null,
     order_text:lines.join('\n'),
-    back_ordered:$('editBack').checked,
+    back_ordered:(o.order_items||[]).some(i=>i.back_ordered),
     ready_to_ship:$('editReady').checked||$('editShipped').checked,
     scheduled:$('editScheduled').checked,
     scheduled_pickup_date:$('editScheduled').checked?($('editPickup').value||null):null,
@@ -1234,7 +1231,7 @@ async function saveEditOrder(e){
       }
     }
 
-    // STEP 3 — re-read the saved order from Supabase and verify it independently.
+    // Keep the order-level backorder flag derived from its actual item records.\n    const {data:statusItems,error:statusError}=await supabase.from('order_items').select('back_ordered').eq('order_id',id);\n    if(statusError)throw new Error('Could not check item backorders: '+statusError.message);\n    const {error:syncError}=await supabase.from('orders').update({back_ordered:(statusItems||[]).some(item=>item.back_ordered)}).eq('id',id);\n    if(syncError)throw new Error('Could not synchronize backorder status: '+syncError.message);\n\n    // STEP 3 — re-read the saved order from Supabase and verify it independently.
     const{data:verified,error:verifyError}=await supabase
       .from('orders')
       .select('id,customer_name,po_number,po_status,requested_delivery_date,delivery_method,delivery_method_other,back_ordered,ready_to_ship,scheduled,scheduled_pickup_date,shipped')
