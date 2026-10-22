@@ -338,6 +338,11 @@ function itemRows(o,editable=true,includeBlend=false){
 }
 
 
+
+function lineQuantity(item){
+ const match=String(item.item_text||'').trim().match(/^([0-9]+)(?=\\s|[-xX×(]|$)/);
+ return match?Number(match[1]):null;
+}
 async function setBackorder(o,ids,checked){
  const {error}=await supabase.from('order_items').update({back_ordered:checked,updated_by:user.id,updated_by_email:user.email||null}).in('id',ids).eq('order_id',o.id);
  if(error){alert(error.message);return false}
@@ -347,44 +352,83 @@ async function setBackorder(o,ids,checked){
  if(orderError){alert(orderError.message);return false}
  return true;
 }
-async function splitBackorders(o,ids){
- const {data,error}=await supabase.rpc('split_backordered_items',{p_order_id:o.id,p_item_ids:ids});
- if(error){alert('Could not split order: '+error.message);return false}
- alert('Backordered item(s) moved to new Order #'+data+'. Original Order #'+o.id+' remains available.');
+async function applyBackorder(o,selections,action){
+ const {data,error}=await supabase.rpc('apply_item_backorders',{p_order_id:o.id,p_selections:selections.map(x=>({id:x.id,qty:x.qty})),p_action:action});
+ if(error){alert('Backorder could not be saved: '+error.message);return false}
+ if(action==='split')alert('Backordered quantity moved to new Order #'+data+'. The remaining quantity stays on Order #'+o.id+'.');
  return true;
 }
-function backorderChoice(message){
+function backorderChoice(o,items,{ready=false}={}){
  return new Promise(resolve=>{
   const overlay=document.createElement('div');overlay.className='bo-overlay';
-  overlay.innerHTML='<div class="bo-dialog" role="dialog" aria-modal="true"><h3>Backorder Items</h3><p>'+esc(message)+'</p><div class="bo-buttons"><button type="button" data-choice="keep">Keep in This Order</button><button type="button" class="primary" data-choice="split">Move to Separate Order</button><button type="button" data-choice="cancel">Cancel</button></div></div>';
+  const details=items.map(item=>{
+   const qty=lineQuantity(item);
+   return '<div class="bo-quantity-row"><strong>'+esc(item.item_text)+'</strong><label>Quantity to backorder <input type="number" inputmode="numeric" min="1" max="'+(qty||1)+'" step="1" value="'+(qty||1)+'" data-bo-qty="'+item.id+'"></label><small data-bo-remaining="'+item.id+'"></small></div>';
+  }).join('');
+  overlay.innerHTML='<div class="bo-dialog" role="dialog" aria-modal="true"><h3>'+ (ready?'Backordered Items Found':'Backorder Items') +'</h3><p>'+ (ready?'Keep the order on hold or split the backordered quantities before marking it Ready.':'Choose how much to backorder and whether to keep it in this order or split it.') +'</p>'+details+'<div class="bo-error" aria-live="polite"></div><div class="bo-buttons"><button type="button" data-choice="keep">Keep in This Order</button><button type="button" class="primary" data-choice="split">Move to Separate Order</button><button type="button" data-choice="cancel">Cancel</button></div></div>';
   document.body.append(overlay);
-  overlay.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{const value=b.dataset.choice;overlay.remove();resolve(value)});
+  const inputs=[...overlay.querySelectorAll('[data-bo-qty]')];
+  function validate(){
+   const selections=[];
+   for(const item of items){
+    const input=inputs.find(el=>Number(el.dataset.boQty)===Number(item.id));
+    const qty=Number(input.value),max=lineQuantity(item);
+    if(!max||!Number.isSafeInteger(qty)||qty<1||qty>max){
+     overlay.querySelector('.bo-error').textContent='Enter a whole number between 1 and '+(max||1)+' for each item.';
+     return null;
+    }
+    overlay.querySelector('[data-bo-remaining="'+item.id+'"]').textContent=(max-qty)+' remaining on the original line';
+    selections.push({id:item.id,qty});
+   }
+   overlay.querySelector('.bo-error').textContent='';
+   return selections;
+  }
+  inputs.forEach(input=>input.addEventListener('input',validate));
+  validate();
+  overlay.querySelectorAll('[data-choice]').forEach(button=>button.onclick=()=>{
+   const action=button.dataset.choice;
+   if(action==='cancel'){overlay.remove();resolve(null);return}
+   const selections=validate();if(!selections)return;
+   overlay.remove();resolve({action,selections});
+  });
  });
 }
 async function chooseBackorder(o,ids){
- const choice=await backorderChoice(ids.length===1?'Keep this item with the order on hold, or move it into a separate backordered order?':'Keep these items with the order on hold, or move them into one separate backordered order?');
- if(choice==='keep')return setBackorder(o,ids,true);
- if(choice==='split')return splitBackorders(o,ids);
- return false;
+ const items=ids.map(id=>(o.order_items||[]).find(i=>Number(i.id)===Number(id))).filter(Boolean);
+ if(!items.length)return false;
+ const result=await backorderChoice(o,items);
+ if(!result)return false;
+ return applyBackorder(o,result.selections,result.action);
 }
-async function keepFromEdit(){
+function editBackorderSelections(o){
+ const selected=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')];
+ if(!selected.length){alert('Select the items you want to backorder.');return null}
+ const selections=[];
+ for(const checkbox of selected){
+  const item=(o.order_items||[]).find(i=>String(i.id)===checkbox.dataset.editBackItem);
+  if(!item)continue;
+  const qtyInput=document.querySelector('[data-edit-bo-qty="'+item.id+'"]');
+  const max=lineQuantity(item),qty=Number(qtyInput?.value||max);
+  if(!max||!Number.isSafeInteger(qty)||qty<1||qty>max){alert('Enter a valid whole-number backorder quantity for '+item.item_text);return null}
+  selections.push({id:item.id,qty});
+ }
+ return selections;
+}
+async function runEditBackorder(action){
  const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
- const ids=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')].map(el=>Number(el.dataset.editBackItem));
- if(!ids.length){alert('Select one or more items first.');return}
- if(await setBackorder(o,ids,true)){closeEditModal();await refreshCurrentPage()}
+ const selections=editBackorderSelections(o);if(!selections)return;
+ if(action==='split'&&!confirm('Move the selected backordered quantities into one new order?'))return;
+ if(await applyBackorder(o,selections,action)){closeEditModal();await refreshCurrentPage()}
 }
-async function splitFromEdit(){
- const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
- const ids=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')].map(el=>Number(el.dataset.editBackItem));
- if(!ids.length){alert('Select the Backorder checkbox for the items to split.');return}
- if(!confirm('Move '+ids.length+' selected item(s) into one new backordered order?'))return;
- if(await splitBackorders(o,ids)){closeEditModal();await refreshCurrentPage()}
-}
+async function keepFromEdit(){await runEditBackorder('keep')}
+async function splitFromEdit(){await runEditBackorder('split')}
 async function checkBackordersBeforeReady(o){
- const ids=(o.order_items||[]).filter(i=>i.back_ordered).map(i=>i.id);
- if(!ids.length)return true;
- const choice=await backorderChoice('This order contains '+ids.length+' backordered item(s). Keep the order on hold or split the backordered items to continue?');
- if(choice==='split'){if(await splitBackorders(o,ids)){alert('The available items remain on the original order. Mark it Ready now.')} }
+ const items=(o.order_items||[]).filter(i=>i.back_ordered);
+ if(!items.length)return true;
+ const choice=await backorderChoice(o,items,{ready:true});
+ if(choice?.action==='split'){
+  if(await applyBackorder(o,choice.selections,'split'))alert('Backordered quantities were split. Review the updated order, then mark it Ready.');
+ }
  return false;
 }
 
@@ -925,7 +969,7 @@ function ensureEditModal(){
       <label>Order <span class="small">(one item per line)</span></label>
       <textarea id="editOrderText" rows="7" required></textarea>
 
-      <div id="editLots"></div><div class="bo-edit-actions"><button type="button" id="keepEditBackorders" class="secondary">Keep Selected Backordered</button><button type="button" id="splitEditBackorders" class="secondary">Split Selected Into New Order</button></div>
+      <div id="editLots"></div><div class="bo-edit-actions"><button type="button" id="keepEditBackorders" class="secondary">Keep Selected in Order</button><button type="button" id="splitEditBackorders" class="primary">Split Selected Into New Order</button></div>
 
       <div class="edit-status-grid">
         <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
@@ -961,10 +1005,10 @@ function closeEditModal(){
 function renderEditLots(o){
   const box=$('editLots');
   if(!box)return;
-  box.innerHTML='<label>Lot Number(s)</label><div class="edit-lots">'
+  box.innerHTML='<label>Order Items &amp; Lot Numbers</label><div class="edit-lots">'
     +(o.order_items||[]).map((i,idx)=>`<div class="edit-lot-row">
-      <div><strong>${esc(i.item_text)}</strong></div>
-      <input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)"><label class="check"><input type="checkbox" data-edit-back-item="${i.id}" ${i.back_ordered?'checked':''}> Backorder</label>
+      <div class="edit-item-top"><strong>${esc(i.item_text)}</strong><input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)" aria-label="Lot numbers for ${esc(i.item_text)}"></div>
+      <div class="edit-item-bottom"><label class="check"><input type="checkbox" data-edit-back-item="${i.id}" ${i.back_ordered?'checked':''}> Backorder</label><label class="edit-qty-label">Backorder Qty <input type="number" min="1" max="${lineQuantity(i)||1}" step="1" inputmode="numeric" data-edit-bo-qty="${i.id}" value="${lineQuantity(i)||1}"></label>${i.back_ordered?'<span class="bo-marked">Backordered · uncheck to clear</span>':''}</div>
     </div>`).join('')
     +'</div>';
 }
@@ -990,6 +1034,18 @@ function openEditOrder(id){
   $('editPickup').value=o.scheduled_pickup_date||'';
 
   renderEditLots(o);
+  $('editLots').onchange=async e=>{
+    const t=e.target;
+    if(!t.matches('[data-edit-back-item]'))return;
+    if(t.checked)return; // New selections are applied together with the buttons below.
+    const id=Number(t.dataset.editBackItem);
+    const old=(o.order_items||[]).find(i=>Number(i.id)===id);
+    if(old?.back_ordered){
+      t.disabled=true;
+      if(await setBackorder(o,[id],false)){closeEditModal();await refreshCurrentPage()}
+      else t.disabled=false;
+    }
+  };
   $('editError').className='edit-save-status';
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
