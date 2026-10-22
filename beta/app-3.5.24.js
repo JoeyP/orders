@@ -87,7 +87,7 @@ function operationalDueDate(o){
 }
 function deliveryUrgencyClass(o,{showReadyGreen=false}={}){
   if(o.shipped)return showReadyGreen?'gray':'';
-  if(o.back_ordered)return'charcoal';
+  if(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))return'charcoal';
 
   const dueDate=operationalDueDate(o);
   if(dueDate){
@@ -226,7 +226,7 @@ async function loadOrders(){
     if(aDue&&bDue&&aDue!==bDue)return aDue.localeCompare(bDue);
     if(aDue&&!bDue)return-1;
     if(!aDue&&bDue)return 1;
-    const priority=o=>o.shipped?3:o.back_ordered?2:o.ready_to_ship?1:0;
+    const priority=o=>o.shipped?3:(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))?2:o.ready_to_ship?1:0;
     const priorityDiff=priority(a)-priority(b);
     if(priorityDiff)return priorityDiff;
     return String(a.created_at||'').localeCompare(String(b.created_at||''));
@@ -309,7 +309,7 @@ function filtered(){
     return f==='all'
       ||(f==='active'&&!o.shipped)
       ||(f==='open'&&!o.ready_to_ship&&!o.shipped)
-      ||(f==='back'&&o.back_ordered&&!o.shipped)
+      ||(f==='back'&&(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))&&!o.shipped)
       ||(f==='ready'&&o.ready_to_ship&&!o.shipped)
       ||(f==='scheduled'&&o.scheduled&&!o.shipped)
       ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
@@ -332,12 +332,65 @@ function itemRows(o,editable=true,includeBlend=false){
         ${i.requires_blending?'checked':''}
         ${o.shipped?'disabled':''}
         aria-label="Blend ${esc(p.item||i.item_text)}"></div>`:''}
+      ${includeBlend?`<div class="inline-blend"><input type="checkbox" data-backorder-item="${i.id}" ${i.back_ordered?'checked':''} ${o.shipped?'disabled':''} aria-label="Backorder ${esc(p.item||i.item_text)}"></div>`:''}
     </div>`;
   }).join('');
 }
 
+
+async function setBackorder(o,ids,checked){
+ const {error}=await supabase.from('order_items').update({back_ordered:checked,updated_by:user.id,updated_by_email:user.email||null}).in('id',ids).eq('order_id',o.id);
+ if(error){alert(error.message);return false}
+ const {data:remaining,error:readError}=await supabase.from('order_items').select('back_ordered').eq('order_id',o.id);
+ if(readError){alert(readError.message);return false}
+ const {error:orderError}=await supabase.from('orders').update({back_ordered:(remaining||[]).some(i=>i.back_ordered),updated_by:user.id,updated_by_email:user.email||null}).eq('id',o.id);
+ if(orderError){alert(orderError.message);return false}
+ return true;
+}
+async function splitBackorders(o,ids){
+ const {data,error}=await supabase.rpc('split_backordered_items',{p_order_id:o.id,p_item_ids:ids});
+ if(error){alert('Could not split order: '+error.message);return false}
+ alert('Backordered item(s) moved to new Order #'+data+'. Original Order #'+o.id+' remains available.');
+ return true;
+}
+function backorderChoice(message){
+ return new Promise(resolve=>{
+  const overlay=document.createElement('div');overlay.className='bo-overlay';
+  overlay.innerHTML='<div class="bo-dialog" role="dialog" aria-modal="true"><h3>Backorder Items</h3><p>'+esc(message)+'</p><div class="bo-buttons"><button type="button" data-choice="keep">Keep in This Order</button><button type="button" class="primary" data-choice="split">Move to Separate Order</button><button type="button" data-choice="cancel">Cancel</button></div></div>';
+  document.body.append(overlay);
+  overlay.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{const value=b.dataset.choice;overlay.remove();resolve(value)});
+ });
+}
+async function chooseBackorder(o,ids){
+ const choice=await backorderChoice(ids.length===1?'Keep this item with the order on hold, or move it into a separate backordered order?':'Keep these items with the order on hold, or move them into one separate backordered order?');
+ if(choice==='keep')return setBackorder(o,ids,true);
+ if(choice==='split')return splitBackorders(o,ids);
+ return false;
+}
+async function splitFromEdit(){
+ const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
+ const ids=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')].map(el=>Number(el.dataset.editBackItem));
+ if(!ids.length){alert('Select the Backorder checkbox for the items to split.');return}
+ if(!confirm('Move '+ids.length+' selected item(s) into one new backordered order?'))return;
+ if(await splitBackorders(o,ids)){closeEditModal();await refreshCurrentPage()}
+}
+async function checkBackordersBeforeReady(o){
+ const ids=(o.order_items||[]).filter(i=>i.back_ordered).map(i=>i.id);
+ if(!ids.length)return true;
+ const choice=await backorderChoice('This order contains '+ids.length+' backordered item(s). Keep the order on hold or split the backordered items to continue?');
+ if(choice==='split'){if(await splitBackorders(o,ids)){alert('The available items remain on the original order. Mark it Ready now.')} }
+ return false;
+}
+
 async function changeTracker(e){
   const t=e.target;
+
+  if(t.dataset.backorderItem){
+    const itemId=Number(t.dataset.backorderItem),o=orders.find(x=>(x.order_items||[]).some(i=>i.id===itemId));
+    if(!o)return;
+    if(t.checked){await chooseBackorder(o,[itemId]);}else{await setBackorder(o,[itemId],false)}
+    await trackerLoad();return;
+  }
 
   if(t.dataset.blendItem){
     const id=t.dataset.blendItem;
@@ -382,6 +435,7 @@ async function changeTracker(e){
 
   if(t.dataset.ready){
     if(t.checked){
+      if(!await checkBackordersBeforeReady(o)){t.checked=false;await trackerLoad();return;}
       const missing=(o.order_items||[]).filter(i=>!String(i.lot_numbers||'').trim()).length;
       if(missing&&!confirm(`${missing} item(s) are missing lot numbers. Mark Ready anyway?`)){
         t.checked=false;
@@ -400,6 +454,7 @@ async function changeTracker(e){
     if(t.value)patch.scheduled=true;
   }
   if(t.dataset.shipped){
+    if(t.checked&&!await checkBackordersBeforeReady(o)){t.checked=false;await trackerLoad();return;}
     patch.shipped=t.checked;
     if(t.checked)patch.ready_to_ship=true;
   }
@@ -426,9 +481,9 @@ async function trackerLoad(){
       <td class="items${page==='desktop'?' admin-items':''}">
         <div class="item-head${page==='desktop'?' admin-item-head':''}">
           <div>${(page==='tracker'||page==='desktop')?'':'Qty'}</div><div>${(page==='tracker'||page==='desktop')?'':'Container'}</div><div>${(page==='tracker'||page==='desktop')?'':'Item'}</div><div>${(page==='desktop'||page==='tracker')?'':'Lot Number(s)'}</div>
-          ${page==='desktop'?'<div class="inline-blend-head"></div>':''}
+          ${(page==='desktop'||page==='tracker')?'<div class="inline-blend-head"></div><div class="inline-blend-head"></div>':''}
         </div>
-        ${itemRows(o,true,page==='desktop')}
+        ${itemRows(o,true,true)}
       </td>
       <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
@@ -864,7 +919,7 @@ function ensureEditModal(){
       <label>Order <span class="small">(one item per line)</span></label>
       <textarea id="editOrderText" rows="7" required></textarea>
 
-      <div id="editLots"></div>
+      <div id="editLots"></div><button type="button" id="splitEditBackorders" class="secondary">Split Selected Backordered Items</button>
 
       <div class="edit-status-grid">
         <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
@@ -890,6 +945,7 @@ function ensureEditModal(){
   setupPo('edit');
   setupDelivery('edit');
   $('editPickup').addEventListener('change',()=>{if($('editPickup').value)$('editScheduled').checked=true});
+  $('splitEditBackorders').onclick=splitFromEdit;
   $('editScheduled').addEventListener('change',()=>{if(!$('editScheduled').checked)$('editPickup').value=''});
 }
 function closeEditModal(){
@@ -901,7 +957,7 @@ function renderEditLots(o){
   box.innerHTML='<label>Lot Number(s)</label><div class="edit-lots">'
     +(o.order_items||[]).map((i,idx)=>`<div class="edit-lot-row">
       <div><strong>${esc(i.item_text)}</strong></div>
-      <input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)">
+      <input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)"><label class="check"><input type="checkbox" data-edit-back-item="${i.id}" ${i.back_ordered?'checked':''}> Backorder</label>
     </div>`).join('')
     +'</div>';
 }
@@ -927,6 +983,7 @@ function openEditOrder(id){
   $('editPickup').value=o.scheduled_pickup_date||'';
 
   renderEditLots(o);
+  $('editLots').onchange=async e=>{if(e.target.matches('[data-edit-back-item]')){const id=Number(e.target.dataset.editBackItem);if(e.target.checked){await chooseBackorder(o,[id]);closeEditModal();await refreshCurrentPage();}else{await setBackorder(o,[id],false);closeEditModal();await refreshCurrentPage();}}};
   $('editError').className='edit-save-status';
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
@@ -940,10 +997,11 @@ function preserveItemMetadata(oldItems,newLines){
       used.add(idx);
       result.push({
         lot_numbers:oldItems[idx].lot_numbers||null,
-        requires_blending:!!oldItems[idx].requires_blending
+        requires_blending:!!oldItems[idx].requires_blending,
+        back_ordered:!!oldItems[idx].back_ordered
       });
     }else{
-      result.push({lot_numbers:null,requires_blending:false});
+      result.push({lot_numbers:null,requires_blending:false,back_ordered:false});
     }
   });
   return result;
@@ -999,16 +1057,19 @@ async function saveEditOrder(e){
   const currentItems=oldItems.map((i,idx)=>({
     ...i,
     lot_numbers:currentLots[idx],
-    requires_blending:!!i.requires_blending
+    requires_blending:!!i.requires_blending,
+    back_ordered:!!i.back_ordered
   }));
   const rebuiltMetadata=linesChanged
     ?preserveItemMetadata(currentItems,lines)
     :currentItems.map(i=>({
         lot_numbers:i.lot_numbers||null,
-        requires_blending:!!i.requires_blending
+        requires_blending:!!i.requires_blending,
+        back_ordered:!!i.back_ordered
       }));
   const rebuiltLots=rebuiltMetadata.map(x=>x.lot_numbers);
 
+  if(($('editReady').checked||$('editShipped').checked)&&!await checkBackordersBeforeReady(o))return;
   if($('editReady').checked){
     const missing=rebuiltLots.filter(x=>!String(x||'').trim()).length;
     if(missing&&!confirm(`${missing} order item(s) are missing lot numbers. Mark this order Ready anyway?`))return;
@@ -1071,6 +1132,7 @@ async function saveEditOrder(e){
         position,
         lot_numbers:rebuiltMetadata[position]?.lot_numbers||null,
         requires_blending:!!rebuiltMetadata[position]?.requires_blending,
+        back_ordered:!!rebuiltMetadata[position]?.back_ordered,
         updated_by:user.id,
         updated_by_email:user.email||null
       }));
