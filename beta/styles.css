@@ -891,3 +891,17 @@ body[data-page="desktop"] .admin-item-head{display:none!important}
     width: 100%;
   }
 }
+
+/* Beta per-item backorder controls and touch-friendly choice dialog */
+body[data-page="desktop"] .item-row.admin-item-row,body[data-page="desktop"] .item-head.admin-item-head,body[data-page="tracker"] .item-row.admin-item-row,body[data-page="tracker"] .item-head{grid-template-columns:48px 76px minmax(130px,1fr) minmax(110px,170px) 65px 85px!important;gap:5px!important}
+body[data-page="desktop"] .admin-fixed-item-head,body[data-page="tracker"] .tracker-fixed-item-head{grid-template-columns:48px 76px minmax(130px,1fr) minmax(110px,170px) 65px 85px!important;gap:5px!important}
+body[data-page="desktop"] .inline-blend,body[data-page="tracker"] .inline-blend{display:flex;align-items:center;justify-content:center}
+body[data-page="desktop"] .inline-blend input,body[data-page="tracker"] .inline-blend input{width:21px;height:21px}
+.bo-overlay{position:fixed;inset:0;background:rgba(10,25,40,.62);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}
+.bo-dialog{background:white;border-radius:14px;padding:24px;max-width:480px;width:100%;box-shadow:0 12px 40px #0004}
+.bo-dialog h3{margin:0 0 10px}.bo-dialog p{line-height:1.5}
+.bo-buttons{display:flex;flex-direction:column;gap:10px;margin-top:18px}.bo-buttons button{padding:13px;min-height:46px;border-radius:8px}
+#splitEditBackorders{margin:10px 0;padding:11px;width:100%}
+#editLots .edit-lot-row{gap:8px;align-items:center}
+#editLots .edit-lot-row .check{white-space:nowrap}
+@media(max-width:750px){body[data-page="desktop"] .item-row.admin-item-row,body[data-page="tracker"] .item-row.admin-item-row{min-width:540px}#editLots .edit-lot-row{display:flex;flex-wrap:wrap}#editLots .edit-lot-row>div{width:100%}}
