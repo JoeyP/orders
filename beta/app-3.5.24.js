@@ -367,6 +367,12 @@ async function chooseBackorder(o,ids){
  if(choice==='split')return splitBackorders(o,ids);
  return false;
 }
+async function keepFromEdit(){
+ const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
+ const ids=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')].map(el=>Number(el.dataset.editBackItem));
+ if(!ids.length){alert('Select one or more items first.');return}
+ if(await setBackorder(o,ids,true)){closeEditModal();await refreshCurrentPage()}
+}
 async function splitFromEdit(){
  const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
  const ids=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')].map(el=>Number(el.dataset.editBackItem));
@@ -919,7 +925,7 @@ function ensureEditModal(){
       <label>Order <span class="small">(one item per line)</span></label>
       <textarea id="editOrderText" rows="7" required></textarea>
 
-      <div id="editLots"></div><button type="button" id="splitEditBackorders" class="secondary">Split Selected Backordered Items</button>
+      <div id="editLots"></div><div class="bo-edit-actions"><button type="button" id="keepEditBackorders" class="secondary">Keep Selected Backordered</button><button type="button" id="splitEditBackorders" class="secondary">Split Selected Into New Order</button></div>
 
       <div class="edit-status-grid">
         <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
@@ -946,6 +952,7 @@ function ensureEditModal(){
   setupDelivery('edit');
   $('editPickup').addEventListener('change',()=>{if($('editPickup').value)$('editScheduled').checked=true});
   $('splitEditBackorders').onclick=splitFromEdit;
+  $('keepEditBackorders').onclick=keepFromEdit;
   $('editScheduled').addEventListener('change',()=>{if(!$('editScheduled').checked)$('editPickup').value=''});
 }
 function closeEditModal(){
@@ -983,7 +990,6 @@ function openEditOrder(id){
   $('editPickup').value=o.scheduled_pickup_date||'';
 
   renderEditLots(o);
-  $('editLots').onchange=async e=>{if(e.target.matches('[data-edit-back-item]')){const id=Number(e.target.dataset.editBackItem);if(e.target.checked){await chooseBackorder(o,[id]);closeEditModal();await refreshCurrentPage();}else{await setBackorder(o,[id],false);closeEditModal();await refreshCurrentPage();}}};
   $('editError').className='edit-save-status';
   $('editError').textContent='';
   $('editModal').classList.remove('hidden');
