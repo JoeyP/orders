@@ -87,7 +87,7 @@ function operationalDueDate(o){
 }
 function deliveryUrgencyClass(o,{showReadyGreen=false}={}){
   if(o.shipped)return showReadyGreen?'gray':'';
-  if(o.back_ordered)return'charcoal';
+  if(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))return'charcoal';
 
   const dueDate=operationalDueDate(o);
   if(dueDate){
@@ -226,7 +226,7 @@ async function loadOrders(){
     if(aDue&&bDue&&aDue!==bDue)return aDue.localeCompare(bDue);
     if(aDue&&!bDue)return-1;
     if(!aDue&&bDue)return 1;
-    const priority=o=>o.shipped?3:o.back_ordered?2:o.ready_to_ship?1:0;
+    const priority=o=>o.shipped?3:(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))?2:o.ready_to_ship?1:0;
     const priorityDiff=priority(a)-priority(b);
     if(priorityDiff)return priorityDiff;
     return String(a.created_at||'').localeCompare(String(b.created_at||''));
@@ -288,9 +288,9 @@ function filtered(){
   const dateFrom=$('dateFrom')?.value||'';
   const dateTo=$('dateTo')?.value||'';
 
-  const result=orders.filter(o=>{
+  return orders.filter(o=>{
     // Order Tracker is a warehouse work queue. Once Ready, the order leaves it.
-    if(page==='tracker'&&(o.shipped||(f==='ready'?!o.ready_to_ship:f==='all'?false:o.ready_to_ship)))return false;
+    if(page==='tracker'&&o.ready_to_ship)return false;
 
     const hay=[
       o.customer_name,o.po_number,o.po_status,o.order_text,
@@ -309,14 +309,12 @@ function filtered(){
     return f==='all'
       ||(f==='active'&&!o.shipped)
       ||(f==='open'&&!o.ready_to_ship&&!o.shipped)
-      ||(f==='back'&&o.back_ordered&&!o.shipped)
+      ||(f==='back'&&(o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered))&&!o.shipped)
       ||(f==='ready'&&o.ready_to_ship&&!o.shipped)
       ||(f==='scheduled'&&o.scheduled&&!o.shipped)
       ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
       ||(f==='shipped'&&o.shipped);
   });
-  if(f==='shipped')result.sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')));
-  return result;
 }
 function itemRows(o,editable=true,includeBlend=false){
   return (o.order_items||[]).map(i=>{
@@ -332,19 +330,120 @@ function itemRows(o,editable=true,includeBlend=false){
         type="checkbox"
         data-blend-item="${i.id}"
         ${i.requires_blending?'checked':''}
-        ${(o.shipped||o.ready_to_ship)?'disabled':''}
+        ${o.shipped?'disabled':''}
         aria-label="Blend ${esc(p.item||i.item_text)}"></div>`:''}
+      ${includeBlend?`<div class="inline-blend"><input type="checkbox" data-backorder-item="${i.id}" ${i.back_ordered?'checked':''} ${o.shipped?'disabled':''} aria-label="Backorder ${esc(p.item||i.item_text)}"></div>`:''}
     </div>`;
   }).join('');
+}
+
+
+
+function lineQuantity(item){
+ const match=String(item.item_text||'').trim().match(/^([0-9]+)(?=\s|[-xX×(]|$)/);
+ return match?Number(match[1]):null;
+}
+async function setBackorder(o,ids,checked){
+ const {error}=await supabase.from('order_items').update({back_ordered:checked,updated_by:user.id,updated_by_email:user.email||null}).in('id',ids).eq('order_id',o.id);
+ if(error){alert(error.message);return false}
+ const {data:remaining,error:readError}=await supabase.from('order_items').select('back_ordered').eq('order_id',o.id);
+ if(readError){alert(readError.message);return false}
+ const {error:orderError}=await supabase.from('orders').update({back_ordered:(remaining||[]).some(i=>i.back_ordered),updated_by:user.id,updated_by_email:user.email||null}).eq('id',o.id);
+ if(orderError){alert(orderError.message);return false}
+ return true;
+}
+async function applyBackorder(o,selections,action){
+ const {data,error}=await supabase.rpc('apply_item_backorders',{p_order_id:o.id,p_selections:selections.map(x=>({id:x.id,qty:x.qty})),p_action:action});
+ if(error){alert('Backorder could not be saved: '+error.message);return false}
+ if(action==='split')alert('Backordered quantity moved to new Order #'+data+'. The remaining quantity stays on Order #'+o.id+'.');
+ return true;
+}
+function backorderChoice(o,items,{ready=false}={}){
+ return new Promise(resolve=>{
+  const overlay=document.createElement('div');overlay.className='bo-overlay';
+  const details=items.map(item=>{
+   const qty=lineQuantity(item);
+   return '<div class="bo-quantity-row"><strong>'+esc(item.item_text)+'</strong><label>Quantity to backorder <input type="number" inputmode="numeric" min="1" max="'+(qty||1)+'" step="1" value="'+(qty||1)+'" data-bo-qty="'+item.id+'"></label><small data-bo-remaining="'+item.id+'"></small></div>';
+  }).join('');
+  overlay.innerHTML='<div class="bo-dialog" role="dialog" aria-modal="true"><h3>'+ (ready?'Backordered Items Found':'Backorder Items') +'</h3><p>'+ (ready?'Keep the order on hold or split the backordered quantities before marking it Ready.':'Choose how much to backorder and whether to keep it in this order or split it.') +'</p>'+details+'<div class="bo-error" aria-live="polite"></div><div class="bo-buttons"><button type="button" data-choice="keep">Keep in This Order</button><button type="button" class="primary" data-choice="split">Move to Separate Order</button><button type="button" data-choice="cancel">Cancel</button></div></div>';
+  document.body.append(overlay);
+  const inputs=[...overlay.querySelectorAll('[data-bo-qty]')];
+  function validate(){
+   const selections=[];
+   for(const item of items){
+    const input=inputs.find(el=>Number(el.dataset.boQty)===Number(item.id));
+    const qty=Number(input.value),max=lineQuantity(item);
+    if(!max||!Number.isSafeInteger(qty)||qty<1||qty>max){
+     overlay.querySelector('.bo-error').textContent='Enter a whole number between 1 and '+(max||1)+' for each item.';
+     return null;
+    }
+    overlay.querySelector('[data-bo-remaining="'+item.id+'"]').textContent=(max-qty)+' remaining on the original line';
+    selections.push({id:item.id,qty});
+   }
+   overlay.querySelector('.bo-error').textContent='';
+   return selections;
+  }
+  inputs.forEach(input=>input.addEventListener('input',validate));
+  validate();
+  overlay.querySelectorAll('[data-choice]').forEach(button=>button.onclick=()=>{
+   const action=button.dataset.choice;
+   if(action==='cancel'){overlay.remove();resolve(null);return}
+   const selections=validate();if(!selections)return;
+   overlay.remove();resolve({action,selections});
+  });
+ });
+}
+async function chooseBackorder(o,ids){
+ const items=ids.map(id=>(o.order_items||[]).find(i=>Number(i.id)===Number(id))).filter(Boolean);
+ if(!items.length)return false;
+ const result=await backorderChoice(o,items);
+ if(!result)return false;
+ return applyBackorder(o,result.selections,result.action);
+}
+function editBackorderSelections(o){
+ const selected=[...document.querySelectorAll('#editLots [data-edit-back-item]:checked')];
+ if(!selected.length){alert('Select the items you want to backorder.');return null}
+ const selections=[];
+ for(const checkbox of selected){
+  const item=(o.order_items||[]).find(i=>String(i.id)===checkbox.dataset.editBackItem);
+  if(!item)continue;
+  const qtyInput=document.querySelector('[data-edit-bo-qty="'+item.id+'"]');
+  const max=lineQuantity(item),qty=Number(qtyInput?.value||max);
+  if(!max||!Number.isSafeInteger(qty)||qty<1||qty>max){alert('Enter a valid whole-number backorder quantity for '+item.item_text);return null}
+  selections.push({id:item.id,qty});
+ }
+ return selections;
+}
+async function runEditBackorder(action){
+ const o=orders.find(x=>String(x.id)===String($('editId').value));if(!o)return;
+ const selections=editBackorderSelections(o);if(!selections)return;
+ if(action==='split'&&!confirm('Move the selected backordered quantities into one new order?'))return;
+ if(await applyBackorder(o,selections,action)){closeEditModal();await refreshCurrentPage()}
+}
+async function keepFromEdit(){await runEditBackorder('keep')}
+async function splitFromEdit(){await runEditBackorder('split')}
+async function checkBackordersBeforeReady(o){
+ const items=(o.order_items||[]).filter(i=>i.back_ordered);
+ if(!items.length)return true;
+ const choice=await backorderChoice(o,items,{ready:true});
+ if(choice?.action==='split'){
+  if(await applyBackorder(o,choice.selections,'split'))alert('Backordered quantities were split. Review the updated order, then mark it Ready.');
+ }
+ return false;
 }
 
 async function changeTracker(e){
   const t=e.target;
 
+  if(t.dataset.backorderItem){
+    const itemId=Number(t.dataset.backorderItem),o=orders.find(x=>(x.order_items||[]).some(i=>i.id===itemId));
+    if(!o)return;
+    if(t.checked){await chooseBackorder(o,[itemId]);}else{await setBackorder(o,[itemId],false)}
+    await trackerLoad();return;
+  }
+
   if(t.dataset.blendItem){
     const id=t.dataset.blendItem;
-    const parent=orders.find(o=>(o.order_items||[]).some(i=>String(i.id)===String(id)));
-    if(parent?.ready_to_ship||parent?.shipped){t.checked=!t.checked;alert('Unmark Ready before changing Blend on this order.');return;}
     const checked=t.checked;
     t.disabled=true;
 
@@ -376,16 +475,16 @@ async function changeTracker(e){
     return;
   }
 
-  const id=t.dataset.back||t.dataset.ready||t.dataset.scheduled||t.dataset.pickup||t.dataset.shipped;
+  const id=t.dataset.ready||t.dataset.scheduled||t.dataset.pickup||t.dataset.shipped;
   if(!id)return;
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o)return;
 
   const patch={updated_by:user.id,updated_by_email:user.email||null};
-  if(t.dataset.back)patch.back_ordered=t.checked;
 
   if(t.dataset.ready){
     if(t.checked){
+      if(!await checkBackordersBeforeReady(o)){t.checked=false;await trackerLoad();return;}
       const missing=(o.order_items||[]).filter(i=>!String(i.lot_numbers||'').trim()).length;
       if(missing&&!confirm(`${missing} item(s) are missing lot numbers. Mark Ready anyway?`)){
         t.checked=false;
@@ -404,6 +503,7 @@ async function changeTracker(e){
     if(t.value)patch.scheduled=true;
   }
   if(t.dataset.shipped){
+    if(t.checked&&!await checkBackordersBeforeReady(o)){t.checked=false;await trackerLoad();return;}
     patch.shipped=t.checked;
     if(t.checked)patch.ready_to_ship=true;
   }
@@ -430,11 +530,11 @@ async function trackerLoad(){
       <td class="items${page==='desktop'?' admin-items':''}">
         <div class="item-head${page==='desktop'?' admin-item-head':''}">
           <div>${(page==='tracker'||page==='desktop')?'':'Qty'}</div><div>${(page==='tracker'||page==='desktop')?'':'Container'}</div><div>${(page==='tracker'||page==='desktop')?'':'Item'}</div><div>${(page==='desktop'||page==='tracker')?'':'Lot Number(s)'}</div>
-          ${(page==='desktop'||page==='tracker')?'<div class="inline-blend-head"></div>':''}
+          ${(page==='desktop'||page==='tracker')?'<div class="inline-blend-head"></div><div class="inline-blend-head"></div>':''}
         </div>
-        ${itemRows(o,true,page==='desktop'||page==='tracker')}
+        ${itemRows(o,true,true)}
       </td>
-      <td class="chk"><input type="checkbox" data-back="${o.id}" ${o.back_ordered?'checked':''} ${o.shipped?'disabled':''}></td>
+
       <td class="chk"><input type="checkbox" data-ready="${o.id}" ${o.ready_to_ship?'checked':''} ${o.shipped?'disabled':''}></td>
       ${page==='desktop'?`
         <td class="chk"><input type="checkbox" data-scheduled="${o.id}" ${o.scheduled?'checked':''} ${o.shipped?'disabled':''}></td>
@@ -470,7 +570,6 @@ async function deliveriesLoad(){
     }
     return true;
   });
-  if(f==='shipped')list.sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')));
 
   const box=$('deliveryList');
   if(!box)return;
@@ -750,7 +849,7 @@ async function newOrderSubmit(e){
       ...delivery,
       requested_delivery_date:$('date').value||null,
       order_text:lines.join('\n'),
-      back_ordered:$('backOrdered').checked,
+      back_ordered:false,
       ready_to_ship:false,
       scheduled:false,
       scheduled_pickup_date:null,
@@ -872,7 +971,6 @@ function ensureEditModal(){
       <div id="editLots"></div>
 
       <div class="edit-status-grid">
-        <label class="check"><input id="editBack" type="checkbox"> Back Ordered</label>
         <label class="check"><input id="editReady" type="checkbox"> Ready</label>
         <label class="check"><input id="editScheduled" type="checkbox"> Scheduled</label>
         <label class="check"><input id="editShipped" type="checkbox"> Shipped</label>
@@ -903,10 +1001,9 @@ function closeEditModal(){
 function renderEditLots(o){
   const box=$('editLots');
   if(!box)return;
-  box.innerHTML='<label>Lot Number(s)</label><div class="edit-lots">'
+  box.innerHTML='<label>Order Items &amp; Lot Numbers</label><div class="edit-lots">'
     +(o.order_items||[]).map((i,idx)=>`<div class="edit-lot-row">
-      <div><strong>${esc(i.item_text)}</strong></div>
-      <input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)">
+      <div class="edit-item-top"><strong>${esc(i.item_text)}</strong><input data-edit-lot-index="${idx}" value="${esc(i.lot_numbers||'')}" placeholder="Lot number(s)" aria-label="Lot numbers for ${esc(i.item_text)}"></div>
     </div>`).join('')
     +'</div>';
 }
@@ -925,7 +1022,6 @@ function openEditOrder(id){
   $('editDeliveryOther').value=o.delivery_method_other||'';
   setupDelivery('edit');
   $('editOrderText').value=(o.order_items||[]).map(i=>i.item_text).join('\n')||o.order_text||'';
-  $('editBack').checked=!!o.back_ordered;
   $('editReady').checked=!!o.ready_to_ship;
   $('editScheduled').checked=!!o.scheduled;
   $('editShipped').checked=!!o.shipped;
@@ -945,10 +1041,11 @@ function preserveItemMetadata(oldItems,newLines){
       used.add(idx);
       result.push({
         lot_numbers:oldItems[idx].lot_numbers||null,
-        requires_blending:!!oldItems[idx].requires_blending
+        requires_blending:!!oldItems[idx].requires_blending,
+        back_ordered:!!oldItems[idx].back_ordered
       });
     }else{
-      result.push({lot_numbers:null,requires_blending:false});
+      result.push({lot_numbers:null,requires_blending:false,back_ordered:false});
     }
   });
   return result;
@@ -1004,16 +1101,19 @@ async function saveEditOrder(e){
   const currentItems=oldItems.map((i,idx)=>({
     ...i,
     lot_numbers:currentLots[idx],
-    requires_blending:!!i.requires_blending
+    requires_blending:!!i.requires_blending,
+    back_ordered:!!i.back_ordered
   }));
   const rebuiltMetadata=linesChanged
     ?preserveItemMetadata(currentItems,lines)
     :currentItems.map(i=>({
         lot_numbers:i.lot_numbers||null,
-        requires_blending:!!i.requires_blending
+        requires_blending:!!i.requires_blending,
+        back_ordered:!!i.back_ordered
       }));
   const rebuiltLots=rebuiltMetadata.map(x=>x.lot_numbers);
 
+  if(($('editReady').checked||$('editShipped').checked)&&!await checkBackordersBeforeReady(o))return;
   if($('editReady').checked){
     const missing=rebuiltLots.filter(x=>!String(x||'').trim()).length;
     if(missing&&!confirm(`${missing} order item(s) are missing lot numbers. Mark this order Ready anyway?`))return;
@@ -1025,7 +1125,7 @@ async function saveEditOrder(e){
     ...delivery,
     requested_delivery_date:$('editDate').value||null,
     order_text:lines.join('\n'),
-    back_ordered:$('editBack').checked,
+    back_ordered:(o.order_items||[]).some(i=>i.back_ordered),
     ready_to_ship:$('editReady').checked||$('editShipped').checked,
     scheduled:$('editScheduled').checked,
     scheduled_pickup_date:$('editScheduled').checked?($('editPickup').value||null):null,
@@ -1076,6 +1176,7 @@ async function saveEditOrder(e){
         position,
         lot_numbers:rebuiltMetadata[position]?.lot_numbers||null,
         requires_blending:!!rebuiltMetadata[position]?.requires_blending,
+        back_ordered:!!rebuiltMetadata[position]?.back_ordered,
         updated_by:user.id,
         updated_by_email:user.email||null
       }));
@@ -1105,7 +1206,7 @@ async function saveEditOrder(e){
       }
     }
 
-    // STEP 3 — re-read the saved order from Supabase and verify it independently.
+    // Keep the order-level backorder flag derived from its actual item records.\n    const {data:statusItems,error:statusError}=await supabase.from('order_items').select('back_ordered').eq('order_id',id);\n    if(statusError)throw new Error('Could not check item backorders: '+statusError.message);\n    const {error:syncError}=await supabase.from('orders').update({back_ordered:(statusItems||[]).some(item=>item.back_ordered)}).eq('id',id);\n    if(syncError)throw new Error('Could not synchronize backorder status: '+syncError.message);\n\n    // STEP 3 — re-read the saved order from Supabase and verify it independently.
     const{data:verified,error:verifyError}=await supabase
       .from('orders')
       .select('id,customer_name,po_number,po_status,requested_delivery_date,delivery_method,delivery_method_other,back_ordered,ready_to_ship,scheduled,scheduled_pickup_date,shipped')
