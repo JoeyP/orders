@@ -289,9 +289,6 @@ function filtered(){
   const dateTo=$('dateTo')?.value||'';
 
   return orders.filter(o=>{
-    // Order Tracker is a warehouse work queue. Once Ready, the order leaves it.
-    if(page==='tracker'&&o.ready_to_ship)return false;
-
     const hay=[
       o.customer_name,o.po_number,o.po_status,o.order_text,
       deliveryLabel(o),o.requested_delivery_date,o.scheduled_pickup_date,
@@ -304,6 +301,14 @@ function filtered(){
       const d=o.requested_delivery_date||'';
       if(dateFrom&&(!d||d<dateFrom))return false;
       if(dateTo&&(!d||d>dateTo))return false;
+    }
+
+    if(page==='tracker'){
+      if(o.shipped)return false;
+      if(f==='all')return true;
+      if(f==='ready')return !!o.ready_to_ship;
+      if(f==='back')return !o.ready_to_ship&&(!!o.back_ordered||(o.order_items||[]).some(i=>i.back_ordered));
+      return !o.ready_to_ship; // Active Orders includes backorders, excludes Ready and Shipped.
     }
 
     return f==='all'
