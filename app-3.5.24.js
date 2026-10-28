@@ -1292,6 +1292,13 @@ async function mobileLoad(){
   await loadOrders();
   const directId=new URLSearchParams(location.search).get('order');
   let list=filtered();
+  // Mobile All: newest entered orders first, regardless of delivery date or status.
+  if($('filter')?.value==='all'){
+    list=list.slice().sort((a,b)=>{
+      const byCreated=String(b.created_at||'').localeCompare(String(a.created_at||''));
+      return byCreated||Number(b.id)-Number(a.id);
+    });
+  }
 
   if(directId){
     const direct=orders.find(o=>String(o.id)===String(directId));
