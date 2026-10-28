@@ -581,6 +581,8 @@ async function deliveriesLoad(){
     return true;
   });
 
+  if(f==='shipped'||f==='all')list.sort(newestFirst);
+
   const box=$('deliveryList');
   if(!box)return;
 
