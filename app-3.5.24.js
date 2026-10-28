@@ -282,7 +282,13 @@ function getDelivery(prefix=''){
   };
 }
 
-function newestFirst(a,b){
+// Historical views use newest relevant activity first, independent of active-work priority.
+function newestFirst(a,b,mode='all'){
+  const dateValue=o=>mode==='shipped'
+    ?(o.updated_at||o.created_at||'')
+    :(o.requested_delivery_date||o.created_at||'');
+  const recent=String(dateValue(b)).localeCompare(String(dateValue(a)));
+  if(recent)return recent;
   const created=String(b.created_at||'').localeCompare(String(a.created_at||''));
   return created||Number(b.id||0)-Number(a.id||0);
 }
@@ -324,7 +330,7 @@ function filtered(){
       ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
       ||(f==='shipped'&&o.shipped);
   });
-  return (f==='all'||f==='shipped')?matches.sort(newestFirst):matches;
+  return (f==='all'||f==='shipped')?matches.sort((a,b)=>newestFirst(a,b,f)):matches;
 }
 function itemRows(o,editable=true,includeBlend=false){
   return (o.order_items||[]).map(i=>{
@@ -581,7 +587,7 @@ async function deliveriesLoad(){
     return true;
   });
 
-  if(f==='shipped'||f==='all')list.sort(newestFirst);
+  if(f==='shipped'||f==='all')list.sort((a,b)=>newestFirst(a,b,f));
 
   const box=$('deliveryList');
   if(!box)return;
