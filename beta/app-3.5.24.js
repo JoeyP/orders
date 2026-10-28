@@ -282,13 +282,17 @@ function getDelivery(prefix=''){
   };
 }
 
+function newestFirst(a,b){
+  const created=String(b.created_at||'').localeCompare(String(a.created_at||''));
+  return created||Number(b.id||0)-Number(a.id||0);
+}
 function filtered(){
   const f=$('filter')?.value||'active';
   const q=($('search')?.value||'').trim().toLowerCase();
   const dateFrom=$('dateFrom')?.value||'';
   const dateTo=$('dateTo')?.value||'';
 
-  return orders.filter(o=>{
+  const matches=orders.filter(o=>{
     const hay=[
       o.customer_name,o.po_number,o.po_status,o.order_text,
       deliveryLabel(o),o.requested_delivery_date,o.scheduled_pickup_date,
@@ -320,6 +324,7 @@ function filtered(){
       ||(f==='po_follow'&&o.po_status==='to_follow'&&!o.shipped)
       ||(f==='shipped'&&o.shipped);
   });
+  return (f==='all'||f==='shipped')?matches.sort(newestFirst):matches;
 }
 function itemRows(o,editable=true,includeBlend=false){
   return (o.order_items||[]).map(i=>{
