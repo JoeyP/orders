@@ -16,12 +16,13 @@ const PAGE_ACCESS_COLUMN={
   deliveries:'deliveries',
   blending:'blending',
   desktop:'admin_orders',
-  users:'users_page'
+  users:'users_page',
+  calendar:'job_calendar'
 };
 const PROFILE_DEFAULTS={
-  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,order_history:false,shipping_documents:false,users_page:false},
-  warehouse:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:false,users_page:false},
-  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,order_history:false,shipping_documents:false,users_page:true}
+  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,order_history:false,shipping_documents:false,users_page:false,job_calendar:false},
+  warehouse:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:false,users_page:false,job_calendar:false},
+  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,order_history:false,shipping_documents:false,users_page:true,job_calendar:false}
 };
 async function loadUserAccess(){
   if(!user){userAccess=null;return null;}
@@ -43,7 +44,8 @@ function applyNavigationAccess(){
     'deliveries.html':'deliveries',
     'blending.html':'blending',
     'desktop.html':'desktop',
-    'users.html':'users'
+    'users.html':'users',
+    'job-calendar.html':'calendar'
   };
   document.querySelectorAll('[data-page-access]').forEach(a=>{
     a.classList.toggle('hidden',!canAccess(a.dataset.pageAccess));
@@ -1276,7 +1278,8 @@ const ACCESS_FIELDS=[
   ['admin_orders','Admin Orders'],
   ['order_history','Order History'],
   ['shipping_documents','Shipping Documents'],
-  ['users_page','Users']
+  ['users_page','Users'],
+  ['job_calendar','Job Calendar']
 ];
 function profileLabel(v){
   return v==='service_rep'?'Service Rep':v==='warehouse'?'Warehouse':'Admin';
