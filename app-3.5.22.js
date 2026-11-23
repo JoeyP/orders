@@ -17,13 +17,14 @@ const PAGE_ACCESS_COLUMN={
   blending:'blending',
   desktop:'admin_orders',
   users:'users_page',
+  calendar:'job_calendar',
   shipping:'shipping_documents',
   history:'order_history'
 };
 const PROFILE_DEFAULTS={
-  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,order_history:false,users_page:false},
-  warehouse:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:false,users_page:false},
-  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,order_history:false,users_page:true}
+  service_rep:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:false,admin_orders:false,order_history:false,users_page:false,job_calendar:false},
+  warehouse:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:false,users_page:false,job_calendar:false},
+  admin:{new_order:true,mobile_orders:true,order_tracker:true,deliveries:true,blending:true,admin_orders:true,order_history:false,users_page:true,job_calendar:false}
 };
 async function loadUserAccess(){
   if(!user){userAccess=null;return null;}
@@ -46,6 +47,7 @@ function applyNavigationAccess(){
     'blending.html':'blending',
     'desktop.html':'desktop',
     'users.html':'users',
+    'job-calendar.html':'calendar',
     'shipping-documents.html':'shipping'
   };
   document.querySelectorAll('[data-page-access]').forEach(a=>{
@@ -1279,7 +1281,8 @@ const ACCESS_FIELDS=[
   ['blending','Blending'],
   ['admin_orders','Admin Orders'],
   ['order_history','Order History'],
-  ['users_page','Users']
+  ['users_page','Users'],
+  ['job_calendar','Job Calendar']
 ];
 function profileLabel(v){
   return v==='service_rep'?'Service Rep':v==='warehouse'?'Warehouse':'Admin';
