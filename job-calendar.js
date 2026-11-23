@@ -129,7 +129,7 @@ async function save(e){
   else {
    const master=editing.series,scope=$('editScope').value,occ=editing.instance;
    if(scope==='series'){
-    const delta=diff(occ,v.start_date);
+    const delta=diff(editing.start_date,v.start_date);
     const start=addDays(master.start_date,delta),end=addDays(master.end_date,delta);
     await upsert({...v,start_date:start,end_date:end,recurrence:v.recurrence,recurrence_until:v.recurrence_until},master.id);
    }else if(scope==='future'){
