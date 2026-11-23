@@ -185,7 +185,30 @@ function clickJob(e){
  const event=events.find(x=>String(x.id)===btn.dataset.job&&x.instance===btn.dataset.instance);
  if(event)openDetails(event);
 }
+
+let subscriptionScope='';
+async function subscriptionRequest(action,scope){
+ const {data:{session}}=await db.auth.getSession();
+ if(!session)throw Error('Please sign in again.');
+ const response=await fetch(SUPABASE_URL+'/functions/v1/job-calendar-ics',{method:'POST',headers:{'Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},body:JSON.stringify({action,scope})});
+ const data=await response.json();
+ if(!response.ok)throw Error(data.error||'Subscription request failed');
+ return data;
+}
+async function createSubscription(scope){
+ const el=$('subscriptionResult');el.textContent='Creating private link...';
+ try{
+  const data=await subscriptionRequest('create',scope);
+  subscriptionScope=scope;$('subscriptionUrl').value=data.url;
+  $('subscriptionLinkArea').classList.remove('hidden');
+  el.textContent=(scope==='mine'?'My Jobs':'All Jobs')+' link ready. Copy it into Outlook → Add calendar → Subscribe from web. Keep this link private.';
+ }catch(e){el.textContent=e.message}
+}
 function setup(){
+ $('subscribeMine').onclick=()=>createSubscription('mine');
+ $('subscribeAll').onclick=()=>createSubscription('all');
+ $('copySubscription').onclick=async()=>{try{await navigator.clipboard.writeText($('subscriptionUrl').value);$('subscriptionResult').textContent='Link copied. Paste it into Outlook calendar subscription.'}catch(e){$('subscriptionUrl').select();$('subscriptionResult').textContent='Select and copy the link above.'}};
+ $('revokeSubscription').onclick=async()=>{if(!subscriptionScope||!confirm('Revoke this subscription link? Outlook will no longer be able to refresh it.'))return;try{await subscriptionRequest('revoke',subscriptionScope);$('subscriptionLinkArea').classList.add('hidden');$('subscriptionUrl').value='';$('subscriptionResult').textContent='Link revoked.'}catch(e){$('subscriptionResult').textContent=e.message}};
  $('closeView').onclick=$('viewClose').onclick=()=>$('viewDialog').close();
  $('viewEdit').onclick=()=>{if(!viewing)return;const item=viewing;$('viewDialog').close();openJob(item)};
  $('addJob').onclick=()=>openJob();$('closeDialog').onclick=$('cancelJob').onclick=()=>$('jobDialog').close();
