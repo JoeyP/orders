@@ -205,6 +205,8 @@ async function createSubscription(scope){
  }catch(e){el.textContent=e.message}
 }
 function setup(){
+ $('calendarSettings').onclick=()=>$('settingsDialog').showModal();
+ $('closeSettings').onclick=$('doneSettings').onclick=()=>$('settingsDialog').close();
  $('subscribeMine').onclick=()=>createSubscription('mine');
  $('subscribeAll').onclick=()=>createSubscription('all');
  $('copySubscription').onclick=async()=>{try{await navigator.clipboard.writeText($('subscriptionUrl').value);$('subscriptionResult').textContent='Link copied. Paste it into Outlook calendar subscription.'}catch(e){$('subscriptionUrl').select();$('subscriptionResult').textContent='Select and copy the link above.'}};
