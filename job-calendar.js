@@ -197,7 +197,7 @@ async function boot(){
  if(!user)return;
  const {data:a,error}=await db.from('user_page_access').select('job_calendar').eq('user_id',user.id).maybeSingle();
  if(error||!a?.job_calendar){document.querySelector('[data-auth="app"]').innerHTML='<div class="card"><h2>Access Denied</h2><p>Ask an administrator to enable Job Calendar in User Access.</p><a href="index.html">Return Home</a></div>';return}
- const {data:p,error:peopleError}=await db.from('user_page_access').select('user_id,display_name').order('display_name');
+ const {data:p,error:peopleError}=await db.from('job_calendar_employees').select('user_id,display_name').order('display_name');
  if(peopleError)show('Employee names unavailable: '+peopleError.message);
  people=p||[];
  $('employeeFilter').innerHTML='<option value="">All Employees</option>'+people.map(x=>'<option value="'+safe(x.user_id)+'">'+safe(x.display_name)+'</option>').join('');
