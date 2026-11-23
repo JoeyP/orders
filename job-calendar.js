@@ -196,9 +196,11 @@ async function subscriptionRequest(action,scope){
  return data;
 }
 async function createSubscription(scope){
- const el=$('subscriptionResult');el.textContent='Creating private link...';
+ const el=$('subscriptionResult');el.textContent='Checking subscription...';
  try{
-  const data=await subscriptionRequest('create',scope);
+  let data=await subscriptionRequest('get',scope);
+  if(!data.exists)data=await subscriptionRequest('create',scope);
+  else if(data.legacy){subscriptionScope=scope;$('subscriptionLinkArea').classList.remove('hidden');$('subscriptionUrl').value='';$('subscriptionResult').textContent='This link was created before saved-link retrieval was available. Your current Outlook subscription still works. To get a new copy, select Regenerate Link (then update Outlook).';return;}
   subscriptionScope=scope;$('subscriptionUrl').value=data.url;
   $('subscriptionLinkArea').classList.remove('hidden');
   el.textContent=(scope==='mine'?'My Jobs':'All Jobs')+' link ready. Copy it into Outlook → Add calendar → Subscribe from web. Keep this link private.';
@@ -210,6 +212,7 @@ function setup(){
  $('subscribeMine').onclick=()=>createSubscription('mine');
  $('subscribeAll').onclick=()=>createSubscription('all');
  $('copySubscription').onclick=async()=>{try{await navigator.clipboard.writeText($('subscriptionUrl').value);$('subscriptionResult').textContent='Link copied. Paste it into Outlook calendar subscription.'}catch(e){$('subscriptionUrl').select();$('subscriptionResult').textContent='Select and copy the link above.'}};
+ $('regenerateSubscription').onclick=async()=>{if(!subscriptionScope||!confirm('Regenerate this link? Your existing Outlook subscription will stop updating until you replace its URL.'))return;try{const data=await subscriptionRequest('regenerate',subscriptionScope);$('subscriptionUrl').value=data.url;$('subscriptionResult').textContent='New link ready. Copy it and replace your previous Outlook subscription URL.'}catch(e){$('subscriptionResult').textContent=e.message}};
  $('revokeSubscription').onclick=async()=>{if(!subscriptionScope||!confirm('Revoke this subscription link? Outlook will no longer be able to refresh it.'))return;try{await subscriptionRequest('revoke',subscriptionScope);$('subscriptionLinkArea').classList.add('hidden');$('subscriptionUrl').value='';$('subscriptionResult').textContent='Link revoked.'}catch(e){$('subscriptionResult').textContent=e.message}};
  $('closeView').onclick=$('viewClose').onclick=()=>$('viewDialog').close();
  $('viewEdit').onclick=()=>{if(!viewing)return;const item=viewing;$('viewDialog').close();openJob(item)};
