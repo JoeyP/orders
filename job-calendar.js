@@ -97,6 +97,7 @@ function openJob(o=null,day=null){
   editing=o;
   $('formHeading').textContent='Edit Job';
   for(const [id,key] of [['jobCustomer','customer'],['jobLocation','location'],['jobTitle','title'],['jobStart','start_date'],['jobEnd','end_date'],['jobTime','start_time'],['jobEndTime','end_time'],['jobType','job_type'],['jobStatus','status'],['jobNotes','notes']])$(id).value=o[key]||'';
+  if(o.end_date===o.start_date)$('jobEnd').value='';
   $('jobRepeat').value=o.series?.recurrence||'none';$('jobRepeatUntil').value=o.series?.recurrence_until||'';
   $('jobAssignees').querySelectorAll('input[type=checkbox]').forEach(opt=>opt.checked=(o.assignees||[]).includes(opt.value));
   $('deleteJob').classList.remove('hidden');
