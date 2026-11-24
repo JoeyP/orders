@@ -7,7 +7,7 @@ const parse=s=>new Date(s+'T12:00:00'),addDays=(s,n)=>{let d=parse(s);d.setDate(
 const diff=(a,b)=>Math.round((parse(b)-parse(a))/86400000);
 const fmt=s=>parse(s).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const types={trial:'Chemical Trial',startup:'Startup',shutdown:'Shutdown',service:'Service Visit',installation:'Installation',other:'Other'};
+const types={trial:'Chemical Trial',startup:'Startup',shutdown:'Shutdown',service:'Service Visit',installation:'Installation',pump_job:'Pump Job',other:'Other'};
 let user,access,people=[],records=[],events=[],mode='calendar',anchor=parse(today()),editing=null,viewing=null,range={start:'',end:''},loading=false;
 function show(msg){$('message').textContent=msg||''}
 function assigned(o){return (o.assignees||[]).map(id=>people.find(p=>p.user_id===id)?.display_name).filter(Boolean).join(', ')}
