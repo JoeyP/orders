@@ -3,3 +3,5 @@
 .jc-subscribe{background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px 16px;margin:12px 0}.jc-subscribe summary{font-weight:700;cursor:pointer}.jc-subscribe-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.jc-subscribe input{width:100%;padding:9px;margin-top:5px}.jc-subscribe p{margin:10px 0}
 
 .jc-settings-link{border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}.jc-settings-link:hover{opacity:.75}.jc-dialog .jc-subscribe{margin:12px 0;border:0;background:transparent;padding:0}.jc-dialog .jc-subscribe h3{font-size:17px;margin:8px 0 12px}
+
+.jc-chip.pump_job{border-color:#0d9488}
