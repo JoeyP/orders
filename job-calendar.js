@@ -8,6 +8,9 @@ const diff=(a,b)=>Math.round((parse(b)-parse(a))/86400000);
 const fmt=s=>parse(s).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types={trial:'Chemical Trial',startup:'Startup',shutdown:'Shutdown',service:'Service Visit',installation:'Installation',pump_job:'Pump Job',other:'Other'};
+const typeLabel=o=>(o.job_type==='other'&&o.other_job_type?.trim())||types[o.job_type]||'Other';
+const jobLabel=o=>o.title?.trim()||typeLabel(o);
+function toggleOther(){$('otherJobTypeWrap').classList.toggle('hidden',$('jobType').value!=='other')}
 let user,access,people=[],records=[],events=[],mode='calendar',anchor=parse(today()),editing=null,viewing=null,range={start:'',end:''},loading=false;
 function show(msg){$('message').textContent=msg||''}
 function assigned(o){return (o.assignees||[]).map(id=>people.find(p=>p.user_id===id)?.display_name).filter(Boolean).join(', ')}
@@ -75,7 +78,7 @@ function render(){
  for(let i=0;i<days;i++){
   const day=addDays(range.start,i),d=parse(day),other=d.getMonth()!==anchor.getMonth()&&!isWeek;
   const items=list.filter(x=>x.start_date<=day&&x.end_date>=day);
-  html+='<div class="jc-day'+(other?' other':'')+(day===today()?' today':'')+'"><button type="button" class="jc-date" data-new="'+day+'">'+d.getDate()+'</button>'+items.slice(0,5).map(x=>'<button type="button" class="jc-chip '+x.job_type+' '+x.status+'" data-job="'+x.id+'" data-instance="'+x.instance+'">'+safe(x.customer)+' · '+safe(x.title)+'</button>').join('')+(items.length>5?'<div class="small">+'+(items.length-5)+' more</div>':'')+'</div>';
+  html+='<div class="jc-day'+(other?' other':'')+(day===today()?' today':'')+'"><button type="button" class="jc-date" data-new="'+day+'">'+d.getDate()+'</button>'+items.slice(0,5).map(x=>'<button type="button" class="jc-chip '+x.job_type+' '+x.status+'" data-job="'+x.id+'" data-instance="'+x.instance+'">'+safe(x.customer)+' · '+safe(jobLabel(x))+'</button>').join('')+(items.length>5?'<div class="small">+'+(items.length-5)+' more</div>':'')+'</div>';
  }
  $('calendarGrid').innerHTML=html;
 }
@@ -84,7 +87,7 @@ function renderList(){
  let list=visible().filter(x=>rangeType==='all'||(rangeType==='past'?x.end_date<now:x.end_date>=now));
  if(rangeType==='past')list.reverse();
  $('listCount').textContent=list.length+' jobs in displayed date range';
- $('jobList').innerHTML=list.length?list.map(x=>'<button class="jc-card" type="button" data-job="'+x.id+'" data-instance="'+x.instance+'"><div><strong>'+safe(x.customer)+' — '+safe(x.title)+'</strong><span class="small">'+fmt(x.start_date)+(x.end_date!==x.start_date?' – '+fmt(x.end_date):'')+(x.start_time?' · '+safe(x.start_time.slice(0,5)):' · Time TBD')+'</span><span class="small">'+safe(x.location||'')+' · '+safe(types[x.job_type]||'Other')+' · '+safe(x.status)+'</span>'+(assigned(x)?'<span class="small">Assigned: '+safe(assigned(x))+'</span>':'')+(x.notes?'<span class="small">'+safe(x.notes.slice(0,140))+'</span>':'')+'</div><span>›</span></button>').join(''):'<div class="jc-list-empty">No jobs match these filters.</div>';
+ $('jobList').innerHTML=list.length?list.map(x=>'<button class="jc-card" type="button" data-job="'+x.id+'" data-instance="'+x.instance+'"><div><strong>'+safe(x.customer)+' — '+safe(jobLabel(x))+'</strong><span class="small">'+fmt(x.start_date)+(x.end_date!==x.start_date?' – '+fmt(x.end_date):'')+(x.start_time?' · '+safe(x.start_time.slice(0,5)):' · Time TBD')+'</span><span class="small">'+safe(x.location||'')+' · '+safe(typeLabel(x))+' · '+safe(x.status)+'</span>'+(assigned(x)?'<span class="small">Assigned: '+safe(assigned(x))+'</span>':'')+(x.notes?'<span class="small">'+safe(x.notes.slice(0,140))+'</span>':'')+'</div><span>›</span></button>').join(''):'<div class="jc-list-empty">No jobs match these filters.</div>';
 }
 function resetForm(){
  $('jobForm').reset();$('jobStart').value=today();$('jobEnd').value='';$('jobType').value='other';$('jobRepeat').value='none';$('jobStatus').value='scheduled';$('formError').textContent='';
@@ -96,18 +99,18 @@ function openJob(o=null,day=null){
  if(o){
   editing=o;
   $('formHeading').textContent='Edit Job';
-  for(const [id,key] of [['jobCustomer','customer'],['jobLocation','location'],['jobTitle','title'],['jobStart','start_date'],['jobEnd','end_date'],['jobTime','start_time'],['jobEndTime','end_time'],['jobType','job_type'],['jobStatus','status'],['jobNotes','notes']])$(id).value=o[key]||'';
+  for(const [id,key] of [['jobCustomer','customer'],['jobLocation','location'],['jobTitle','title'],['otherJobType','other_job_type'],['jobStart','start_date'],['jobEnd','end_date'],['jobTime','start_time'],['jobEndTime','end_time'],['jobType','job_type'],['jobStatus','status'],['jobNotes','notes']])$(id).value=o[key]||'';
   if(o.end_date===o.start_date)$('jobEnd').value='';
   $('jobRepeat').value=o.series?.recurrence||'none';$('jobRepeatUntil').value=o.series?.recurrence_until||'';
   $('jobAssignees').querySelectorAll('input[type=checkbox]').forEach(opt=>opt.checked=(o.assignees||[]).includes(opt.value));
   $('deleteJob').classList.remove('hidden');
   if(o.series?.recurrence!=='none')$('seriesControls').classList.remove('hidden');
  }else if(day){$('jobStart').value=day;$('jobEnd').value=''}
- $('jobDialog').showModal();
+ toggleOther();$('jobDialog').showModal();
 }
 function values(){
- const v={customer:$('jobCustomer').value.trim(),location:$('jobLocation').value.trim(),title:$('jobTitle').value.trim(),start_date:$('jobStart').value,end_date:$('jobEnd').value||$('jobStart').value,start_time:$('jobTime').value||null,end_time:$('jobEndTime').value||null,job_type:$('jobType').value,status:$('jobStatus').value,notes:$('jobNotes').value.trim(),assignees:[...$('jobAssignees').querySelectorAll('input:checked')].map(x=>x.value),recurrence:$('jobRepeat').value,recurrence_until:$('jobRepeatUntil').value||null};
- if(!v.customer||!v.title||!v.start_date)throw Error('Customer, title and start date are required.');
+ const v={customer:$('jobCustomer').value.trim(),location:$('jobLocation').value.trim(),title:$('jobTitle').value.trim(),start_date:$('jobStart').value,end_date:$('jobEnd').value||$('jobStart').value,start_time:$('jobTime').value||null,end_time:$('jobEndTime').value||null,job_type:$('jobType').value,other_job_type:$('jobType').value==='other'?$('otherJobType').value.trim():'',status:$('jobStatus').value,notes:$('jobNotes').value.trim(),assignees:[...$('jobAssignees').querySelectorAll('input:checked')].map(x=>x.value),recurrence:$('jobRepeat').value,recurrence_until:$('jobRepeatUntil').value||null};
+ if(!v.customer||!v.job_type||!v.start_date)throw Error('Customer, job type and start date are required.');
  if(v.end_date<v.start_date)throw Error('End date must be on or after start date.');
  if(v.recurrence!=='none'&&v.recurrence_until&&v.recurrence_until<v.start_date)throw Error('Repeat-until must be on or after the start date.');
  if(v.start_date===v.end_date&&v.start_time&&v.end_time&&v.end_time<v.start_time)throw Error('End time must not precede start time.');
@@ -164,7 +167,7 @@ async function remove(){
    else{const {error}=await db.from('job_calendar').update({recurrence_until:addDays(editing.instance,-1),updated_by:user.id}).eq('id',m.id);if(error)throw error}
   }else{
    const m=editing.series,existing=records.find(x=>x.parent_id===m.id&&x.occurrence_date===editing.instance);
-   const patch={customer:m.customer,location:m.location,title:m.title,notes:m.notes,job_type:m.job_type,status:'cancelled',start_date:editing.instance,end_date:addDays(editing.instance,duration(m)),assignees:m.assignees,recurrence:'none',parent_id:m.id,occurrence_date:editing.instance,updated_by:user.id};
+   const patch={customer:m.customer,location:m.location,title:m.title,notes:m.notes,job_type:m.job_type,other_job_type:m.other_job_type||'',status:'cancelled',start_date:editing.instance,end_date:addDays(editing.instance,duration(m)),assignees:m.assignees,recurrence:'none',parent_id:m.id,occurrence_date:editing.instance,updated_by:user.id};
    if(existing){const {error}=await db.from('job_calendar').update(patch).eq('id',existing.id);if(error)throw error}
    else{const {error}=await db.from('job_calendar').insert({...patch,created_by:user.id});if(error)throw error}
   }
@@ -176,7 +179,7 @@ function openDetails(o){
  const row=(label,value)=>'<div class="jc-detail"><span class="jc-detail-label">'+safe(label)+'</span><div class="jc-detail-value">'+safe(value||'—')+'</div></div>';
  const dates=fmt(o.start_date)+(o.end_date!==o.start_date?' – '+fmt(o.end_date):'');
  const time=o.start_time?o.start_time.slice(0,5)+(o.end_time?' – '+o.end_time.slice(0,5):''):'Time not specified';
- $('jobDetails').innerHTML=row('Customer',o.customer)+row('Location / Facility',o.location)+row('Job',o.title)+row('Date',dates)+row('Time',time)+row('Type',types[o.job_type]||'Other')+row('Status',o.status)+row('Assigned Employees',assigned(o))+row('Repeats',o.series?.recurrence==='none'?'No':o.series.recurrence)+row('Notes',o.notes);
+ $('jobDetails').innerHTML=row('Customer',o.customer)+row('Location / Facility',o.location)+row('Job',jobLabel(o))+row('Date',dates)+row('Time',time)+row('Type',typeLabel(o))+row('Status',o.status)+row('Assigned Employees',assigned(o))+row('Repeats',o.series?.recurrence==='none'?'No':o.series.recurrence)+row('Notes',o.notes);
  $('viewDialog').showModal();
 }
 function clickJob(e){
@@ -217,7 +220,7 @@ function setup(){
  $('closeView').onclick=$('viewClose').onclick=()=>$('viewDialog').close();
  $('viewEdit').onclick=()=>{if(!viewing)return;const item=viewing;$('viewDialog').close();openJob(item)};
  $('addJob').onclick=()=>openJob();$('closeDialog').onclick=$('cancelJob').onclick=()=>$('jobDialog').close();
- $('jobForm').onsubmit=save;$('deleteJob').onclick=remove;
+ $('jobType').onchange=toggleOther;$('jobForm').onsubmit=save;$('deleteJob').onclick=remove;
  $('calendarGrid').onclick=clickJob;$('jobList').onclick=clickJob;
  $('calendarTab').onclick=()=>{mode='calendar';render()};
  $('listTab').onclick=()=>{mode='list';render()};
